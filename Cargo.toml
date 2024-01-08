@@ -9,7 +9,7 @@ debug = true
 [dependencies]
 axmldecoder = { git = "https://github.com/yourlogarithm/axmldecoder.git", version = "0.6.0" }
 clap = { version = "4.4.10", features = ["derive"] }
-dex = "0.5.0"
+dex = { version = "0.5.0", path = "dex-parser" }
 indicatif = { version = "0.17.7", features = ["rayon"] }
 num-derive = "0.4.1"
 num-traits = "0.2.17"

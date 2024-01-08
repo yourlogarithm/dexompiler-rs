@@ -48,13 +48,13 @@ pub struct Instruction {
     /// The opcode of the instruction
     opcode: Opcode,
     /// Method reference index, if any
-    m_idx: Option<usize>,
+    m_idx: Option<u16>,
 }
 
 
 impl Instruction {
-    pub fn try_from_raw_bytecode(raw_bytecode: &[u16], offset: usize) -> Result<Option<(Self, usize)>, InstructionParsingError>  {
-        let raw_bytecode = &raw_bytecode[offset..];
+    pub fn try_from_code(code: &[u16], offset: usize) -> Result<Option<(Self, usize)>, InstructionParsingError>  {
+        let raw_bytecode = &code[offset..];
         let (opcode_byte, immediate_args) = split_word!(raw_bytecode[0]);
         let opcode: Opcode = FromPrimitive::from_u8(opcode_byte).ok_or(InstructionParsingError { byte: opcode_byte, offset: offset })?;
 
@@ -73,13 +73,13 @@ impl Instruction {
                 if raw_bytecode.len() < 3 {
                     return Err(InstructionParsingError { byte: opcode_byte, offset: offset });
                 }
-                (3, Some(raw_bytecode[2] as usize))
+                (3, Some(raw_bytecode[2]))
             },
             0xFA | 0xFB => { 
                 if raw_bytecode.len() < 4 {
                     return Err(InstructionParsingError { byte: opcode_byte, offset: offset });
                 }
-                (4, Some(raw_bytecode[2] as usize)) 
+                (4, Some(raw_bytecode[2])) 
             },
             0x18 => (5, None),
             0x28 => (1, None),
@@ -101,7 +101,7 @@ impl Instruction {
         &self.opcode
     }
 
-    pub fn m_idx(&self) -> &Option<usize> {
+    pub fn m_idx(&self) -> &Option<u16> {
         &self.m_idx
     }
 }
@@ -114,7 +114,7 @@ mod test {
     #[test]
     fn test_try_from_raw_bytecode0() {
         let raw_bytecode = [8303, 921, 33];
-        let (instruction, length) = Instruction::try_from_raw_bytecode(&raw_bytecode, 0).unwrap().expect("Failed to parse instruction");
+        let (instruction, length) = Instruction::try_from_code(&raw_bytecode, 0).unwrap().expect("Failed to parse instruction");
         assert!(length == 3);
         assert_eq!(instruction, Instruction { opcode: Opcode::InvokeSuper, m_idx: Some(33) });
     }
@@ -122,7 +122,7 @@ mod test {
     #[test]
     fn test_try_from_raw_bytecode1() {
         let raw_bytecode = [45874, 102];
-        let (instruction, length) = Instruction::try_from_raw_bytecode(&raw_bytecode, 0).unwrap().expect("Failed to parse instruction");
+        let (instruction, length) = Instruction::try_from_code(&raw_bytecode, 0).unwrap().expect("Failed to parse instruction");
         assert_eq!(length, 2);
         assert_eq!(instruction, Instruction { opcode: Opcode::IfEq, m_idx: None });
     }
@@ -130,7 +130,7 @@ mod test {
     #[test]
     fn test_try_from_raw_bytecode2() {
         let raw_bytecode = [290, 648];
-        let (instruction, length) = Instruction::try_from_raw_bytecode(&raw_bytecode, 0).unwrap().expect("Failed to parse instruction");
+        let (instruction, length) = Instruction::try_from_code(&raw_bytecode, 0).unwrap().expect("Failed to parse instruction");
         assert_eq!(length, 2);
         assert_eq!(instruction, Instruction { opcode: Opcode::NewInstance, m_idx: None });
     }

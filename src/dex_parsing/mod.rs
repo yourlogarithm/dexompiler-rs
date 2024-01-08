@@ -1,3 +1,5 @@
+use std::{hash::Hash, collections::HashMap};
+
 use dex::Dex;
 mod instruction;
 mod opcode;
@@ -27,35 +29,39 @@ pub(crate) fn parse_dexes(dexes: Vec<Dex<impl AsRef<[u8]>>>, sequence_cap: usize
 fn get_op_seq(dex: Dex<impl AsRef<[u8]>>, pos: &mut usize) -> (Vec<u8>, Vec<(usize, usize)>) {
     let mut op_seq = vec![];
     let mut m_bounds = vec![];
-    for class in dex.classes() {
-        if let Ok(class) = class {
-            for method in class.methods() {
-                if let Some(code) = method.code() {
-                    let raw_bytecode = code.insns();
-                    let mut offset = 0;
-                    let mut current_method_seq = vec![];
-                    let mut do_extend = true;
-                    let start = *pos;
-                    while offset < raw_bytecode.len() {
-                        match Instruction::try_from_raw_bytecode(raw_bytecode, offset) {
-                            Ok(Some((inst, length))) => {
-                                offset += length;
-                                current_method_seq.push(*inst.opcode() as u8);
-                            },
-                            Ok(None) => break,
-                            Err(_) => {
-                                // eprintln!("Error parsing: {}::{}", class.jtype().to_java_type(), method.name());
-                                do_extend = false;
-                                break;
-                            },
+    let mut edges = HashMap::new();
+    let mut i = 0;
+    for class in dex.classes().filter_map(Result::ok) {
+        for code in class.methods().filter_map(|m| m.code().map(|c| c.insns())) {
+            let mut offset = 0;
+            let mut out_edges = vec![];
+            let mut current_method_seq = vec![];
+            let mut do_extend = true;
+            let start = *pos;
+            while offset < code.len() {
+                match Instruction::try_from_code(code, offset) {
+                    Ok(Some((inst, length))) => {
+                        offset += length;
+                        current_method_seq.push(*inst.opcode() as u8);
+                        if let Some(m_idx) = inst.m_idx() {
+                            out_edges.push(*m_idx);
                         }
-                    }
-                    if do_extend && !current_method_seq.is_empty() {
-                        *pos += current_method_seq.len();
-                        m_bounds.push((start, *pos - 1));
-                        op_seq.extend(current_method_seq);
-                    }
+                    },
+                    Ok(None) => break,
+                    Err(_) => {
+                        // eprintln!("Error parsing: {}::{}", class.jtype().to_java_type(), method.name());
+                        do_extend = false;
+                        break;
+                    },
                 }
+            }
+            if do_extend && !current_method_seq.is_empty() {
+                *pos += current_method_seq.len();
+                m_bounds.push((start, *pos - 1));
+                op_seq.extend(current_method_seq);
+                // TODO: Fix this
+                edges.insert(i, out_edges); 
+                i += 1;
             }
         }
     }
