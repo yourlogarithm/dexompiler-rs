@@ -3,18 +3,20 @@ name = "dexompiler"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "dexompiler"
+crate-type = ["cdylib"]
+
 [profile.release]
 debug = true
 
 [dependencies]
 axmldecoder = { git = "https://github.com/yourlogarithm/axmldecoder.git", version = "0.6.0" }
-clap = { version = "4.4.10", features = ["derive"] }
 dex = { version = "0.5.0", path = "dex-parser" }
-indicatif = { version = "0.17.7", features = ["rayon"] }
 num-derive = "0.4.1"
 num-traits = "0.2.17"
 num_cpus = "1.16.0"
+pyo3 = { version = "0.20.2", features = ["extension-module"] }
 rayon = "1.8.0"
-serde = { version = "1.0.193", features = ["rc"] }
-serde_json = "1.0.108"
+serde = "1.0.195"
 zip = "0.6.6"
