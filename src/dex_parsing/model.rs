@@ -1,16 +1,19 @@
 use std::collections::{HashMap, VecDeque};
 use dex::Dex;
+use pyo3::pyclass;
 use crate::utils::Error;
 
 use super::instruction::Instruction;
 
 type MethodBound = (usize, usize);
 
+#[pyclass]
+#[derive(Debug)]
 pub struct DexParseModel {
     /// Flat sequence of opcodes from all methods in all dexes (in topological order & up to sequence_cap)
-    op_seq: Vec<u8>,
+    pub op_seq: Vec<u8>,
     /// Vector of (start_index, end_index) pairs for each method in the op_seq, the vector is sorted in topological order
-    method_bounds: Vec<MethodBound>
+    pub method_bounds: Vec<MethodBound>
 }
 
 impl DexParseModel {
@@ -35,8 +38,8 @@ impl DexParseModel {
             }
         }
         
-        let mut sorted_methods = DexParseModel::topological_sort(call_graph);
-        let mut op_seq = DexParseModel::sort_opcode_sequence(op_seq, sorted_methods);
+        let sorted_methods = DexParseModel::topological_sort(call_graph);
+        let op_seq = DexParseModel::sort_opcode_sequence(op_seq, &sorted_methods);
         
         Ok(Self {
             op_seq,
@@ -90,19 +93,15 @@ impl DexParseModel {
             }
         }
         
-        let normalized_edges: Result<HashMap<_, Vec<_>>, _> = edges
-            .into_iter()
-            .map(|(k, v)| {
-                let bounds = v.into_iter().map(|id| -> Result<(usize, usize), String> {
-                    match id_to_bounds.get(&(id as u64)) {
-                        Some(bounds) => Ok(*bounds),
-                        None => Err(format!("No bounds for method id: {}", id).into()),
-                    }
-                }).collect::<Result<Vec<_>, _>>();
-                bounds.map(|bounds| (k, bounds))
-            }).collect();
+        let normalized_edges = edges.into_iter().map(|(key, values)| {
+            let normalized_values = values.into_iter()
+                .filter_map(|id| id_to_bounds.get(&(id as u64)))
+                .collect();
+            (key, normalized_values)
+        }).collect();
+            
         
-        Ok((op_seq, normalized_edges?))
+        Ok((op_seq, normalized_edges))
     }
 
     fn topological_sort(graph: HashMap<MethodBound, Vec<MethodBound>>) -> Vec<MethodBound> {
@@ -143,10 +142,13 @@ impl DexParseModel {
         }
     }
 
-    fn sort_opcode_sequence(opcode_sequence: Vec<u8>, sorted_methods: Vec<MethodBound>) -> Vec<u8> {
+    fn sort_opcode_sequence(opcode_sequence: Vec<u8>, sorted_methods: &[MethodBound]) -> Vec<u8> {
         let mut sorted_sequence = Vec::new();
         for (start, end) in sorted_methods {
-            sorted_sequence.extend_from_slice(&opcode_sequence[start..=end]);
+            if *start > opcode_sequence.len() || *end > opcode_sequence.len() {
+                continue;
+            }
+            sorted_sequence.extend_from_slice(&opcode_sequence[*start..=*end]);
         }
         sorted_sequence
     }

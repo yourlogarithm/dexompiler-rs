@@ -1,13 +1,16 @@
 
 use std::{path::Path, fs, io::Read};
 use dex::DexReader;
+use pyo3::pyclass;
 use zip::ZipArchive;
 
 use crate::{dex_parsing::DexParseModel, manifest_parsing::ManifestParseModel, utils::Error};
 
+#[pyclass]
+#[derive(Debug)]
 pub struct ApkParseModel {
-    dex: DexParseModel,
-    manifest: ManifestParseModel
+    pub dex: DexParseModel,
+    pub manifest: ManifestParseModel
 }
 
 impl ApkParseModel {
