@@ -3,7 +3,7 @@ use axmldecoder::{Node, XmlDocument};
 use pyo3::pyclass;
 
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 #[pyclass]
 pub struct ManifestParseModel {
     /// The permissions requested by the app

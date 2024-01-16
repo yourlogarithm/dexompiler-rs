@@ -1,5 +1,5 @@
 [package]
-name = "dexompiler"
+name = "dexompiler-rs"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,7 +16,7 @@ dex = { version = "0.5.0", path = "dex-parser" }
 num-derive = "0.4.1"
 num-traits = "0.2.17"
 num_cpus = "1.16.0"
-pyo3 = { version = "0.20.2"}
+pyo3 = { version = "0.20.2", features = ["extension-module"] }
 rayon = "1.8.0"
 serde = "1.0.195"
 zip = "0.6.6"

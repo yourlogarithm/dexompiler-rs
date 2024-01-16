@@ -1,7 +1,7 @@
 
 use std::{path::Path, fs, io::Read};
 use dex::DexReader;
-use pyo3::pyclass;
+use pyo3::{pyclass, pymethods};
 use zip::ZipArchive;
 
 use crate::{dex_parsing::DexParseModel, manifest_parsing::ManifestParseModel, utils::Error};
@@ -9,9 +9,24 @@ use crate::{dex_parsing::DexParseModel, manifest_parsing::ManifestParseModel, ut
 #[pyclass]
 #[derive(Debug)]
 pub struct ApkParseModel {
-    pub dex: DexParseModel,
-    pub manifest: ManifestParseModel
+    dex: DexParseModel,
+    manifest: ManifestParseModel
 }
+
+
+// #[pymethods]
+// impl ApkParseModel {
+//     #[getter]
+//     pub fn dex(&self) -> &DexParseModel {
+//         &self.dex
+//     }
+
+//     #[getter]
+//     pub fn manifest(&self) -> PyResult<&ManifestParseModel> {
+//         Ok(&self.manifest)
+//     }
+// }
+
 
 impl ApkParseModel {
     pub fn try_from_path(path: &str, dex_sequence_cap: usize, num_threads: usize) -> Result<Self, Error> {
