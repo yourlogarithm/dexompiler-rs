@@ -73,13 +73,13 @@ impl Instruction {
                 if raw_bytecode.len() < 3 {
                     return Err(InstructionParsingError { byte: opcode_byte, offset: offset });
                 }
-                (3, Some(raw_bytecode[2]))
+                (3, Some(raw_bytecode[1]))
             },
             0xFA | 0xFB => { 
                 if raw_bytecode.len() < 4 {
                     return Err(InstructionParsingError { byte: opcode_byte, offset: offset });
                 }
-                (4, Some(raw_bytecode[2])) 
+                (4, Some(raw_bytecode[1])) 
             },
             0x18 => (5, None),
             0x28 => (1, None),

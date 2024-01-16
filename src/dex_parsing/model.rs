@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, HashSet};
 use dex::Dex;
 use pyo3::pyclass;
 use crate::utils::Error;
@@ -33,12 +33,12 @@ impl DexParseModel {
             let (curr_op_seq, curr_method_bounds) = DexParseModel::get_op_seq(dex, &mut pos, sequence_cap)?;
             op_seq.extend(curr_op_seq);
             call_graph.extend(curr_method_bounds);
-            if op_seq.len() >= sequence_cap {
+            if sequence_cap > 0 && op_seq.len() >= sequence_cap {
                 break;
             }
         }
         
-        let sorted_methods = DexParseModel::topological_sort(call_graph);
+        let sorted_methods = DexParseModel::flatten_graph_dfs(call_graph);
         let op_seq = DexParseModel::sort_opcode_sequence(op_seq, &sorted_methods);
         
         Ok(Self {
@@ -96,49 +96,33 @@ impl DexParseModel {
         let normalized_edges = edges.into_iter().map(|(key, values)| {
             let normalized_values = values.into_iter()
                 .filter_map(|id| id_to_bounds.get(&(id as u64)))
+                .map(|bounds| *bounds)
                 .collect();
             (key, normalized_values)
         }).collect();
-            
         
         Ok((op_seq, normalized_edges))
     }
 
-    fn topological_sort(graph: HashMap<MethodBound, Vec<MethodBound>>) -> Vec<MethodBound> {
-        let mut in_degree = HashMap::new();
-        for (method, calls) in &graph {
-            in_degree.entry(*method).or_insert(0);
-            for &call in calls {
-                *in_degree.entry(call).or_insert(0) += 1;
-            }
-        }
-    
-        let mut queue = VecDeque::new();
-        for (method, &degree) in &in_degree {
-            if degree == 0 {
-                queue.push_back(*method);
-            }
-        }
-    
+    fn flatten_graph_dfs(graph: HashMap<MethodBound, Vec<MethodBound>>) -> Vec<MethodBound> {
+        let mut visited = HashSet::new();
         let mut result = Vec::new();
-        while let Some(method) = queue.pop_front() {
-            result.push(method);
+        
+        for &method in graph.keys() {
+            DexParseModel::dfs(&graph, method, &mut visited, &mut result);
+        }
+    
+        result
+    }
+    
+    fn dfs(graph: &HashMap<MethodBound, Vec<MethodBound>>, method: MethodBound, visited: &mut HashSet<MethodBound>, result: &mut Vec<MethodBound>) {
+        if visited.insert(method) {
             if let Some(calls) = graph.get(&method) {
                 for &call in calls {
-                    if let Some(degree) = in_degree.get_mut(&call) {
-                        *degree -= 1;
-                        if *degree == 0 {
-                            queue.push_back(call);
-                        }
-                    }
+                    DexParseModel::dfs(graph, call, visited, result);
                 }
             }
-        }
-    
-        if result.len() == in_degree.len() {
-            result
-        } else {
-            Vec::new() // Cycle detected, returning empty vector
+            result.push(method);
         }
     }
 
