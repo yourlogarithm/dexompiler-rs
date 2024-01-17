@@ -1,30 +1,22 @@
-use std::collections::{HashMap, VecDeque, HashSet};
+use std::collections::{HashMap, HashSet};
 use dex::Dex;
-use pyo3::pyclass;
+use serde::{Serialize, Deserialize};
 use crate::utils::Error;
 
 use super::instruction::Instruction;
 
 type MethodBound = (usize, usize);
 
-#[pyclass]
-#[derive(Debug)]
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DexParseModel {
     /// Flat sequence of opcodes from all methods in all dexes (in topological order & up to sequence_cap)
-    pub op_seq: Vec<u8>,
+    op_seq: Vec<u8>,
     /// Vector of (start_index, end_index) pairs for each method in the op_seq, the vector is sorted in topological order
-    pub method_bounds: Vec<MethodBound>
+    method_bounds: Vec<MethodBound>
 }
 
 impl DexParseModel {
-    pub fn op_seq(&self) -> &[u8] {
-        &self.op_seq
-    }
-
-    pub fn method_bounds(&self) -> &[(usize, usize)] {
-        &self.method_bounds
-    }
-
     pub fn try_from_dexes(dexes: Vec<Dex<impl AsRef<[u8]>>>, sequence_cap: usize) -> Result<Self, Error> {
         let mut op_seq = vec![]; 
         let mut call_graph = HashMap::new();

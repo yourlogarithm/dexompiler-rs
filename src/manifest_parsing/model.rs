@@ -1,10 +1,9 @@
 use crate::utils::Error;
 use axmldecoder::{Node, XmlDocument};
-use pyo3::pyclass;
+use serde::{Serialize, Deserialize};
 
 
-#[derive(Debug, Default, Clone)]
-#[pyclass]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ManifestParseModel {
     /// The permissions requested by the app
     pub permissions: Vec<String>

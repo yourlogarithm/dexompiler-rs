@@ -1,13 +1,13 @@
 
 use std::{path::Path, fs, io::Read};
 use dex::DexReader;
-use pyo3::pyclass;
 use zip::ZipArchive;
+use serde::{Serialize, Deserialize};
 
 use crate::{dex_parsing::DexParseModel, manifest_parsing::ManifestParseModel, utils::Error};
 
-#[pyclass]
-#[derive(Debug)]
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ApkParseModel {
     dex: DexParseModel,
     manifest: ManifestParseModel
@@ -15,7 +15,7 @@ pub struct ApkParseModel {
 
 
 impl ApkParseModel {
-    pub fn try_from_path(path: &str, dex_sequence_cap: usize, num_threads: usize) -> Result<Self, Error> {
+    pub fn try_from_path(path: &str, dex_sequence_cap: usize) -> Result<Self, Error> {
         let file = fs::File::open(Path::new(path))?;
         let mut zip_handler = ZipArchive::new(file)?; 
 
