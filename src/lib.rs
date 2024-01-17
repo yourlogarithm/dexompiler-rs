@@ -1,7 +1,11 @@
+#![feature(test)]
+extern crate test;
+
 mod dex_parsing;
 mod manifest_parsing;
 mod apk;
 mod utils;
+
 
 use crate::apk::ApkParseModel;
 
@@ -21,13 +25,14 @@ fn dexompiler(_py: Python, m: &PyModule) -> PyResult<()> {
 }
 
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test::Bencher;
 
-    #[test]
-    fn test_parse_apk() {
-        let apk = ApkParseModel::try_from_path("resources/F-Droid.apk", 0, 4).unwrap();
-        println!("{:?}", apk);
+    #[bench]
+    fn benchmark_parsing(b: &mut Bencher) {
+        b.iter(|| ApkParseModel::try_from_path("resources/F-Droid.apk", 0, 0).unwrap());
     }
 }

@@ -284,6 +284,7 @@ dependencies = [
  "memmap",
  "num-derive 0.2.5",
  "num-traits",
+ "rayon",
  "scroll",
  "scroll_derive",
 ]
