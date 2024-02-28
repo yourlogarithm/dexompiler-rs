@@ -1,5 +1,4 @@
 use clap::Parser;
-use num_cpus;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
