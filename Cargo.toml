@@ -1,0 +1,12 @@
+[package]
+name = "dexompiler-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lazy_static = "1.4.0"
+log = "0.4.21"
+regex = "1.10.4"
+thiserror = "1.0.58"
+zip = "1.1.0"
+axmldecoder = { git = "https://github.com/yourlogarithm/axmldecoder.git", version = "*" }
