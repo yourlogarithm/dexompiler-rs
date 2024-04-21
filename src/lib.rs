@@ -65,7 +65,7 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
             .chain(m.services.iter())
             .chain(m.receivers.iter())
             .chain(m.providers.iter())
-            .map(|s| Regex::new(s.as_str()))
+            .map(|s| Regex::new(s.replace('.', "/").as_str()))
             .collect::<Result<Vec<_>, _>>()
         {
             Ok(regexes) => Some(regexes),
