@@ -7,7 +7,6 @@ use std::collections::HashMap;
 pub use self::{errors::DexError, opcode::Opcode};
 use crate::dex::instruction::Instruction;
 use dex::Dex;
-use itertools::Itertools;
 use log::{debug, error};
 use regex::Regex;
 use serde::Serialize;
@@ -76,15 +75,20 @@ pub fn get_methods(
 
     // Sort so the manifest components will be prioritized
     let mut flattened = Vec::with_capacity(call_graph.len());
-    let mut stack: Vec<_> = if let Some(regexes) = regexes {
+    let mut stack: Vec<_> = call_graph.keys().collect();
+    if let Some(regexes) = regexes {
         debug!("Sorting by manifest components");
-        call_graph
-            .keys()
-            .sorted_by_key(|m| !regexes.iter().any(|r| r.is_match(m)))
-            .collect()
+        stack.sort_by_cached_key(|&name| {
+            (
+                regexes
+                .iter()
+                .any(|r| r.is_match(name)),
+                name
+            )
+        });
     } else {
         debug!("Sorting by method name");
-        call_graph.keys().sorted().collect()
+        stack.sort();
     };
 
     // DFS to flatten the call graph
