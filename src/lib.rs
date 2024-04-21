@@ -3,23 +3,32 @@ extern crate lazy_static;
 
 mod dex;
 mod errors;
-mod permissions;
+mod manifest;
 
-use log::{debug, error, warn};
+use ::dex::DexReader;
+use dex::{get_methods, Method};
+use log::{error, warn};
+use regex::{Regex, bytes::Regex as BytesRegex};
+use serde::Serialize;
 use std::io::{Read, Seek};
-use regex::bytes::Regex;
 use zip::ZipArchive;
 
 pub use errors::ApkParseError;
 
 lazy_static! {
-    static ref DEX_MAGIC: Regex = Regex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
+    static ref DEX_MAGIC: BytesRegex = BytesRegex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
 }
 
-pub fn parse<R: Read + Seek>(apk: R) -> Result<(), ApkParseError> {
+#[derive(Debug, Serialize)]
+pub struct Apk {
+    pub manifest: Option<manifest::Manifest>,
+    // Topologically sorted methods
+    pub methods: Vec<Method>,
+}
+
+pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
     let mut zip_archive = ZipArchive::new(apk)?;
-    let mut buf = Vec::new();
-    let mut permissions = None;
+    let mut manifest = None;
     let mut dexes = Vec::new();
     for i in 0..zip_archive.len() {
         let mut file = match zip_archive.by_index(i) {
@@ -29,24 +38,49 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<(), ApkParseError> {
                 continue;
             }
         };
+        let mut buf = Vec::new();
         if let Err(e) = file.read_to_end(&mut buf) {
-            debug!("Error reading file: {e}");
+            warn!("Error reading file: {e}");
             continue;
         }
         if file.name() == "AndroidManifest.xml" {
-            if permissions.is_some() {
+            if manifest.is_some() {
                 warn!("Multiple AndroidManifest.xml files found in APK");
             } else {
-                permissions = permissions::parse(&buf)?;
+                manifest = manifest::parse(&buf)?;
             }
         } else {
             if DEX_MAGIC.is_match(&buf) {
-                dexes.push(dex::parse(&buf)?);
+                match DexReader::from_vec(buf) {
+                    Ok(dex) => dexes.push(dex),
+                    Err(e) => error!("{e}"),
+                }
             }
         }
     }
-    println!("{permissions:?}");
-    Ok(())
+    let regexes = if let Some(ref m) = manifest {
+        match m
+            .activities
+            .iter()
+            .chain(m.services.iter())
+            .chain(m.receivers.iter())
+            .chain(m.providers.iter())
+            .map(|s| Regex::new(s.as_str()))
+            .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(regexes) => Some(regexes),
+            Err(e) => {
+                error!("{e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    Ok(Apk {
+        manifest,
+        methods: get_methods(&dexes, regexes)?,
+    })
 }
 
 #[cfg(test)]
@@ -56,7 +90,9 @@ mod tests {
 
     #[test]
     fn it_works() {
+        env_logger::init();
         let file = File::open("F-Droid.apk").unwrap();
-        parse(file).unwrap();
+        let apk = parse(file).unwrap();
+        std::fs::write("dump.json", serde_json::to_string_pretty(&apk).unwrap()).unwrap();
     }
 }
