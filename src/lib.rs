@@ -82,17 +82,3 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
         methods: get_methods(&dexes, regexes)?,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::parse;
-    use std::fs::File;
-
-    #[test]
-    fn it_works() {
-        env_logger::init();
-        let file = File::open("F-Droid.apk").unwrap();
-        let apk = parse(file).unwrap();
-        std::fs::write("dump.json", serde_json::to_string_pretty(&apk).unwrap()).unwrap();
-    }
-}
