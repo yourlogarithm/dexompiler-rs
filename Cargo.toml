@@ -1,6 +1,20 @@
 [package]
-name = "dexompiler-rs"
+name = "dexompiler"
 version = "0.1.0"
+authors = ["yourlogarithm <vlad.sebastian.cretu.dev@gmail.com>"]
+keywords = [
+    "dex",
+    "decompiler",
+    "android",
+    "dalvik",
+    "art",
+    "manifest",
+    "axml",
+    "apk",
+]
+repository = "https://github.com/yourlogarithm/dexompiler-rs"
+license = "MIT"
+readme = "README.md"
 edition = "2021"
 
 [dependencies]

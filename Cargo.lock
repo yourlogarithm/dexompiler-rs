@@ -386,7 +386,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dexompiler-rs"
+name = "dexompiler"
 version = "0.1.0"
 dependencies = [
  "axmldecoder",
