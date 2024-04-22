@@ -72,3 +72,22 @@ pub fn parse(buf: &[u8]) -> Result<Option<Manifest>, ParseError> {
         None => Ok(None),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{fs::File, io::Read};
+    use super::parse;
+
+    #[test]
+    fn test_parse() {
+        let mut buf = Vec::new();
+        File::open("tests/manifest/AndroidManifest.xml").unwrap().read_to_end(&mut buf).unwrap();
+        let manifest = parse(&buf).unwrap().unwrap();
+        assert_eq!(manifest.package, Some("com.test.dexompiler".to_string()));
+        assert_eq!(manifest.permissions, vec!["INTERNET".to_string(), "FOREGROUND_SERVICE".to_string()]);
+        assert_eq!(manifest.activities, vec!["com.test.TestActivity".to_string()]);
+        assert_eq!(manifest.services, vec!["com.test.TestService".to_string()]);
+        assert_eq!(manifest.receivers, vec!["com.test.TestReceiver".to_string()]);
+        assert_eq!(manifest.providers, vec!["com.test.TestProvider".to_string()]);
+    }
+}

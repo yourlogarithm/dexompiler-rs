@@ -111,3 +111,71 @@ impl Instruction {
         Ok(Some((Instruction { opcode, m_idx }, length)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::num::NonZeroUsize;
+
+    #[test]
+    fn test_empty_bytecode() {
+        let code: [u16; 0] = [];
+        let result = Instruction::try_from_code(&code, 0);
+        assert!(matches!(result, Ok(None)));
+    }
+
+    // Test a valid opcode that doesn't require additional bytes
+    #[test]
+    fn test_valid_opcode() {
+        let code: [u16; 1] = [0x01];
+        let result = Instruction::try_from_code(&code, 0);
+        assert!(matches!(
+            result,
+            Ok(Some((
+                Instruction {
+                    opcode: Opcode::Move,
+                    m_idx: None
+                },
+                1
+            )))
+        ));
+    }
+
+    // Test bad opcode case
+    #[test]
+    fn test_bad_opcode() {
+        let code: [u16; 1] = [0x3E];
+        let result = Instruction::try_from_code(&code, 0);
+        assert!(matches!(result, Err(InstructionError::BadOpcode(0, 0x3E))));
+    }
+
+    // // Test a case where bytecode is too short for the given opcode
+    #[test]
+    fn test_too_short() {
+        let code: [u16; 1] = [0x6E];
+        let result = Instruction::try_from_code(&code, 0);
+        if let Err(InstructionError::TooShort { offset, opcode, expected, actual }) = result {
+            assert_eq!(offset, 0);
+            assert_eq!(opcode, Opcode::InvokeVirtual);
+            assert_eq!(expected, NonZeroUsize::new(3).unwrap());
+            assert_eq!(actual, NonZeroUsize::new(1).unwrap());
+        } else {
+            panic!("Expected an error found {result:?}");
+        }
+    }
+
+    // Test an invoke opcode with arguments
+    #[test]
+    fn test_invoke_args() {
+        let code: [u16; 3] = [0x6E, 0x06, 0x00];
+        let (inst, length) = Instruction::try_from_code(&code, 0).unwrap().unwrap();
+        assert_eq!(length, 3);
+        assert_eq!(
+            inst,
+            Instruction {
+                opcode: Opcode::InvokeVirtual,
+                m_idx: Some(6)
+            }
+        );
+    }
+}
