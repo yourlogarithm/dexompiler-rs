@@ -5,11 +5,17 @@ use serde::Serialize;
 
 #[derive(Debug, Default, Serialize, Encode, Decode)]
 pub struct Manifest {
+    #[serde(rename = "pkg")]
     pub package: Option<String>,
+    #[serde(rename = "prm")]
     pub permissions: Vec<String>,
+    #[serde(rename = "act")]
     pub activities: Vec<String>,
+    #[serde(rename = "svc")]
     pub services: Vec<String>,
+    #[serde(rename = "rcv")]
     pub receivers: Vec<String>,
+    #[serde(rename = "prv")]
     pub providers: Vec<String>,
 }
 

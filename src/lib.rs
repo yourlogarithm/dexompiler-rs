@@ -22,8 +22,10 @@ lazy_static! {
 
 #[derive(Debug, Serialize, Encode, Decode)]
 pub struct Apk {
+    #[serde(rename = "man")]
     pub manifest: Option<manifest::Manifest>,
     // Topologically sorted methods
+    #[serde(rename = "mth")]
     pub methods: Vec<Method>,
 }
 
@@ -38,7 +40,9 @@ impl From<Method> for CompactMethod {
 
 #[derive(Debug, Serialize, Encode, Decode)]
 pub struct CompactApk {
+    #[serde(rename = "man")]
     pub manifest: Option<manifest::Manifest>,
+    #[serde(rename = "mth")]
     pub methods: Vec<CompactMethod>,
 }
 

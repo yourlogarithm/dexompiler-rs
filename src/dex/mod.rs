@@ -14,7 +14,9 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Method {
+    #[serde(rename = "fn")]
     pub fullname: String,
+    #[serde(rename = "ins")]
     pub insns: Vec<Instruction>,
 }
 

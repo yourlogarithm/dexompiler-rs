@@ -14,8 +14,9 @@ macro_rules! collect_tuple {
 
 #[derive(Debug, Serialize, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Instruction {
+    #[serde(rename = "op")]
     pub opcode: Opcode,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "m")]
     pub m_idx: Option<u16>,
 }
 
