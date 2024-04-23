@@ -5,11 +5,11 @@ mod dex;
 mod errors;
 mod manifest;
 
-use bitcode::{Decode, Encode};
 use ::dex::DexReader;
+use bitcode::{Decode, Encode};
 use dex::{get_methods, Method};
 use log::{error, warn};
-use regex::{Regex, bytes::Regex as BytesRegex};
+use regex::{bytes::Regex as BytesRegex, Regex};
 use serde::Serialize;
 use std::io::{Read, Seek};
 use zip::ZipArchive;
@@ -17,7 +17,8 @@ use zip::ZipArchive;
 pub use errors::ApkParseError;
 
 lazy_static! {
-    static ref DEX_MAGIC: BytesRegex = BytesRegex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
+    static ref DEX_MAGIC: BytesRegex =
+        BytesRegex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
 }
 
 #[derive(Debug, Serialize, Encode, Decode)]
@@ -29,14 +30,7 @@ pub struct Apk {
     pub methods: Vec<Method>,
 }
 
-#[derive(Debug, Serialize, Encode, Decode)]
-pub struct CompactMethod(Vec<u8>);
-
-impl From<Method> for CompactMethod {
-    fn from(method: Method) -> Self {
-        CompactMethod(method.insns.into_iter().map(|i| i.opcode as u8).collect())
-    }
-}
+pub type CompactMethod = Vec<u8>;
 
 #[derive(Debug, Serialize, Encode, Decode)]
 pub struct CompactApk {
@@ -50,7 +44,11 @@ impl From<Apk> for CompactApk {
     fn from(apk: Apk) -> Self {
         CompactApk {
             manifest: apk.manifest,
-            methods: apk.methods.into_iter().map(CompactMethod::from).collect(),
+            methods: apk
+                .methods
+                .into_iter()
+                .map(|method| method.insns.into_iter().map(|i| i.opcode as u8).collect())
+                .collect(),
         }
     }
 }
