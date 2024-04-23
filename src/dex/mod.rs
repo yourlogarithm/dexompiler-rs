@@ -6,12 +6,13 @@ use std::collections::HashMap;
 
 pub use self::{errors::DexError, opcode::Opcode};
 use crate::dex::instruction::Instruction;
+use bitcode::{Decode, Encode};
 use dex::Dex;
 use log::{debug, error};
 use regex::Regex;
 use serde::Serialize;
 
-#[derive(Debug, Serialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Method {
     pub fullname: String,
     pub insns: Vec<Instruction>,

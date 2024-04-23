@@ -1,8 +1,9 @@
 use axmldecoder::{Node, ParseError, XmlDocument};
+use bitcode::{Decode, Encode};
 use log::warn;
 use serde::Serialize;
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Encode, Decode)]
 pub struct Manifest {
     pub package: Option<String>,
     pub permissions: Vec<String>,

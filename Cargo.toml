@@ -28,3 +28,4 @@ dex = { git = "https://github.com/yourlogarithm/dex-parser.git", version = "0.5.
 num-derive = "0.4.2"
 num-traits = "0.2.18"
 serde = { version = "1.0.198", features = ["derive"] }
+bitcode = "0.6.0"

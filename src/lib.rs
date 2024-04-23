@@ -5,6 +5,7 @@ mod dex;
 mod errors;
 mod manifest;
 
+use bitcode::{Decode, Encode};
 use ::dex::DexReader;
 use dex::{get_methods, Method};
 use log::{error, warn};
@@ -19,11 +20,35 @@ lazy_static! {
     static ref DEX_MAGIC: BytesRegex = BytesRegex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Encode, Decode)]
 pub struct Apk {
     pub manifest: Option<manifest::Manifest>,
     // Topologically sorted methods
     pub methods: Vec<Method>,
+}
+
+#[derive(Debug, Serialize, Encode, Decode)]
+pub struct CompactMethod(Vec<u8>);
+
+impl From<Method> for CompactMethod {
+    fn from(method: Method) -> Self {
+        CompactMethod(method.insns.into_iter().map(|i| i.opcode as u8).collect())
+    }
+}
+
+#[derive(Debug, Serialize, Encode, Decode)]
+pub struct CompactApk {
+    pub manifest: Option<manifest::Manifest>,
+    pub methods: Vec<CompactMethod>,
+}
+
+impl From<Apk> for CompactApk {
+    fn from(apk: Apk) -> Self {
+        CompactApk {
+            manifest: apk.manifest,
+            methods: apk.methods.into_iter().map(CompactMethod::from).collect(),
+        }
+    }
 }
 
 pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
