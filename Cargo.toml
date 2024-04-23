@@ -25,8 +25,6 @@ thiserror = "1.0.58"
 zip = "1.1.0"
 axmldecoder = { git = "https://github.com/yourlogarithm/axmldecoder.git", version = "0.6.0" }
 dex = { git = "https://github.com/yourlogarithm/dex-parser.git", version = "0.5.0" }
-env_logger = "0.11.3"
 num-derive = "0.4.2"
 num-traits = "0.2.18"
 serde = { version = "1.0.198", features = ["derive"] }
-serde_json = "1.0.116"
