@@ -16,6 +16,7 @@ macro_rules! collect_tuple {
 pub struct Instruction {
     #[serde(rename = "op")]
     pub opcode: Opcode,
+    /// If opcode is `invoke-*` - holds the invoked method id
     #[serde(skip_serializing_if = "Option::is_none", rename = "m")]
     pub m_idx: Option<u16>,
 }

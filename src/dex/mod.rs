@@ -14,6 +14,7 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Method {
+    /// String in format `class_type` + `method_name` + `params.join()` + `return_type`
     #[serde(rename = "fn")]
     pub fullname: String,
     #[serde(rename = "ins")]
