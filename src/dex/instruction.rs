@@ -1,6 +1,5 @@
 use std::num::NonZeroUsize;
 
-use bitcode::{Decode, Encode};
 use num_traits::FromPrimitive;
 use serde::Serialize;
 
@@ -12,7 +11,7 @@ macro_rules! collect_tuple {
     };
 }
 
-#[derive(Debug, Serialize, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, PartialEq, Eq, Hash)]
 pub struct Instruction {
     #[serde(rename = "op")]
     pub opcode: Opcode,

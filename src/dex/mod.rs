@@ -6,10 +6,11 @@ mod opcode;
 use std::collections::HashMap;
 
 use self::method::Signature;
-pub use self::{errors::DexError, instruction::Instruction, method::Method, opcode::Opcode};
 use dex::Dex;
 use log::{debug, error};
 use regex::Regex;
+
+pub use self::{errors::DexError, instruction::Instruction, method::{Method, CompactMethod}, opcode::Opcode};
 
 pub fn get_methods(
     dexes: &[Dex<impl AsRef<[u8]>>],

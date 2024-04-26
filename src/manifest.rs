@@ -1,9 +1,8 @@
 use axmldecoder::{Node, ParseError, XmlDocument};
-use bitcode::{Decode, Encode};
 use log::warn;
 use serde::Serialize;
 
-#[derive(Debug, Default, Serialize, Encode, Decode)]
+#[derive(Debug, Default, Serialize)]
 pub struct Manifest {
     #[serde(rename = "pkg")]
     pub package: Option<String>,

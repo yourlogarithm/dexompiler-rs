@@ -1,10 +1,9 @@
-use bitcode::{Decode, Encode};
 use dex::{jtype::Type, string::DexString};
 use serde::Serialize;
 
 use super::instruction::Instruction;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct Signature {
     #[serde(rename = "ct")]
     pub class_type: String,
@@ -32,10 +31,33 @@ impl Signature {
     }
 }
 
-#[derive(Debug, Serialize, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, PartialEq, Eq, Hash)]
 pub struct Method {
     #[serde(flatten)]
     pub signature: Signature,
     #[serde(rename = "ins")]
     pub insns: Vec<Instruction>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CompactMethod {
+    /// `Signature.class_type` + `Signature.method_name`
+    #[serde(rename = "sig")]
+    pub signature: String,
+    /// Vector of opcodes
+    #[serde(rename = "ins")]
+    pub insns: Vec<u8>,
+}
+
+impl From<Method> for CompactMethod {
+    fn from(value: Method) -> Self {
+        Self {
+            signature: value.signature.class_type + &value.signature.method_name,
+            insns: value
+                .insns
+                .into_iter()
+                .map(|insn| insn.opcode as u8)
+                .collect(),
+        }
+    }
 }

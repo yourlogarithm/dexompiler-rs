@@ -1,8 +1,7 @@
-use bitcode::{Decode, Encode};
 use num_derive::FromPrimitive;
 use serde::Serialize;
 
-#[derive(Debug, Serialize, Encode, Decode, FromPrimitive, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, FromPrimitive, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Opcode {
     Nop,
     Move,
