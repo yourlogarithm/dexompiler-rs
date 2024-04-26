@@ -1,38 +1,15 @@
 mod errors;
 mod instruction;
+mod method;
 mod opcode;
 
 use std::collections::HashMap;
 
-pub use self::{errors::DexError, opcode::Opcode};
-use crate::dex::instruction::Instruction;
-use bitcode::{Decode, Encode};
+use self::method::Signature;
+pub use self::{errors::DexError, instruction::Instruction, method::Method, opcode::Opcode};
 use dex::Dex;
 use log::{debug, error};
 use regex::Regex;
-use serde::Serialize;
-
-#[derive(Debug, Serialize, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct Method {
-    /// String in format `class_type` + `method_name` + `params.join()` + `return_type`
-    #[serde(rename = "fn")]
-    pub fullname: String,
-    #[serde(rename = "ins")]
-    pub insns: Vec<Instruction>,
-}
-
-macro_rules! get_fullname {
-    ($class_type:expr, $method_name:expr, $params:expr, $return_type:expr) => {
-        $class_type.to_string()
-            + $method_name
-            + $params
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<String>()
-                .as_str()
-            + $return_type.to_string().as_str()
-    };
-}
 
 pub fn get_methods(
     dexes: &[Dex<impl AsRef<[u8]>>],
@@ -48,12 +25,17 @@ pub fn get_methods(
                     let mut offset = 0;
                     let bytecode = code.insns();
                     let mut insns = Vec::new();
-                    let fullname = get_fullname!(
-                        class.jtype(),
-                        method.name(),
-                        method.params(),
-                        method.return_type()
-                    );
+                    let params = method.params();
+                    let signature = if params.is_empty() {
+                        Signature::new(class.jtype(), method.name(), None, method.return_type())
+                    } else {
+                        Signature::new(
+                            class.jtype(),
+                            method.name(),
+                            Some(params),
+                            method.return_type(),
+                        )
+                    };
                     let mut calls = Vec::new();
                     while let Some((inst, len)) = Instruction::try_from_code(bytecode, offset)
                         .map_err(|source| DexError {
@@ -62,7 +44,7 @@ pub fn get_methods(
                             source,
                         })?
                     {
-                        if let Some(m_idx) = inst.m_idx {
+                        if let Some(m_idx) = inst.method_id {
                             match dex.get_method_item(m_idx as u64) {
                                 Ok(method_item) => {
                                     match (
@@ -74,16 +56,18 @@ pub fn get_methods(
                                             match dex.get_type(p.return_type()) {
                                                 Ok(r) => {
                                                     if p.params_off() == 0 {
-                                                        calls.push(
-                                                            t.to_string()
-                                                                + &n.to_string()
-                                                                + &r.to_string(),
-                                                        )
+                                                        calls
+                                                            .push(Signature::new(&t, &n, None, &r));
                                                     } else {
                                                         match dex.get_interfaces(p.params_off()) {
-                                                            Ok(params) => calls.push(
-                                                                get_fullname!(t, &n, params, r),
-                                                            ),
+                                                            Ok(params) => {
+                                                                calls.push(Signature::new(
+                                                                    &t,
+                                                                    &n,
+                                                                    Some(&params),
+                                                                    &r,
+                                                                ))
+                                                            }
                                                             Err(e) => error!("{e}"),
                                                         }
                                                     }
@@ -102,9 +86,9 @@ pub fn get_methods(
                         insns.push(inst);
                         offset += len;
                     }
-                    let method = Method { fullname, insns };
-                    call_graph.insert(method.fullname.clone(), calls);
-                    name_map.insert(method.fullname.clone(), method);
+                    let method = Method { signature, insns };
+                    call_graph.insert(method.signature.clone(), calls);
+                    name_map.insert(method.signature.clone(), method);
                 }
             }
         }
@@ -115,10 +99,10 @@ pub fn get_methods(
     let mut stack: Vec<_> = call_graph.keys().collect();
     if let Some(regexes) = regexes {
         debug!("Sorting by manifest components");
-        stack.sort_by_cached_key(|&name| {
+        stack.sort_by_cached_key(|&sig| {
             (
-                regexes.iter().any(|r| r.is_match(name)),
-                std::cmp::Reverse(name),
+                regexes.iter().any(|r| r.is_match(&sig.class_type)),
+                std::cmp::Reverse(sig),
             )
         });
     } else {
@@ -141,7 +125,7 @@ pub fn get_methods(
 
 #[cfg(test)]
 mod tests {
-    use crate::dex::{instruction::Instruction, Opcode};
+    use crate::dex::{instruction::Instruction, method::Signature, Opcode};
     use dex::DexReader;
 
     use super::get_methods;
@@ -152,41 +136,57 @@ mod tests {
         let methods = get_methods(&[dex], None).unwrap();
 
         let init = &methods[0];
-        assert_eq!(init.fullname, "LTestBasic;<init>V");
+        assert_eq!(
+            init.signature,
+            Signature {
+                class_type: "LTestBasic;".to_string(),
+                method_name: "<init>".to_string(),
+                params: None,
+                return_type: "V".to_string()
+            }
+        );
         assert_eq!(
             init.insns,
             vec![
                 Instruction {
                     opcode: Opcode::InvokeDirect,
-                    m_idx: Some(3)
+                    method_id: Some(3)
                 },
                 Instruction {
                     opcode: Opcode::ReturnVoid,
-                    m_idx: None
+                    method_id: None
                 }
             ]
         );
 
         let main = &methods[1];
-        assert_eq!(main.fullname, "LTestBasic;main[Ljava/lang/String;V");
+        assert_eq!(
+            main.signature,
+            Signature {
+                class_type: "LTestBasic;".to_string(),
+                method_name: "main".to_string(),
+                params: Some(vec!["[Ljava/lang/String;".to_string()]),
+                return_type: "V".to_string()
+            }
+        );
         assert_eq!(
             main.insns,
             vec![
                 Instruction {
                     opcode: Opcode::SgetObject,
-                    m_idx: None
+                    method_id: None
                 },
                 Instruction {
                     opcode: Opcode::ConstString,
-                    m_idx: None
+                    method_id: None
                 },
                 Instruction {
                     opcode: Opcode::InvokeVirtual,
-                    m_idx: Some(2)
+                    method_id: Some(2)
                 },
                 Instruction {
                     opcode: Opcode::ReturnVoid,
-                    m_idx: None
+                    method_id: None
                 }
             ]
         );
@@ -196,12 +196,59 @@ mod tests {
     fn test_call_graph() {
         let dex = DexReader::from_file("tests/dex/call_graph.dex").unwrap();
         let methods = get_methods(&[dex], None).unwrap();
-        
-        assert_eq!(methods[0].fullname, "LCallGraph;<init>V");
-        assert_eq!(methods[1].fullname, "LCallGraph;aV");
-        assert_eq!(methods[2].fullname, "LCallGraph;zV");
-        assert_eq!(methods[3].fullname, "LCallGraph;yV");
-        assert_eq!(methods[4].fullname, "LCallGraph;xV");
-        assert_eq!(methods[5].fullname, "LCallGraph;main[Ljava/lang/String;V");
+        assert_eq!(
+            methods[0].signature,
+            Signature {
+                class_type: "LCallGraph;".to_string(),
+                method_name: "<init>".to_string(),
+                params: None,
+                return_type: "V".to_string()
+            }
+        );
+        assert_eq!(
+            methods[1].signature,
+            Signature {
+                class_type: "LCallGraph;".to_string(),
+                method_name: "a".to_string(),
+                params: None,
+                return_type: "V".to_string()
+            }
+        );
+        assert_eq!(
+            methods[2].signature,
+            Signature {
+                class_type: "LCallGraph;".to_string(),
+                method_name: "z".to_string(),
+                params: None,
+                return_type: "V".to_string()
+            }
+        );
+        assert_eq!(
+            methods[3].signature,
+            Signature {
+                class_type: "LCallGraph;".to_string(),
+                method_name: "y".to_string(),
+                params: None,
+                return_type: "V".to_string()
+            }
+        );
+        assert_eq!(
+            methods[4].signature,
+            Signature {
+                class_type: "LCallGraph;".to_string(),
+                method_name: "x".to_string(),
+                params: None,
+                return_type: "V".to_string()
+            }
+        );
+        assert_eq!(
+            methods[5].signature,
+            Signature {
+                class_type: "LCallGraph;".to_string(),
+                method_name: "main".to_string(),
+                params: Some(vec!["[Ljava/lang/String;".to_string()]),
+                return_type: "V".to_string()
+            }
+        );
     }
 }

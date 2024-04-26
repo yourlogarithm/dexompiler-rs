@@ -17,8 +17,8 @@ pub struct Instruction {
     #[serde(rename = "op")]
     pub opcode: Opcode,
     /// If opcode is `invoke-*` - holds the invoked method id
-    #[serde(skip_serializing_if = "Option::is_none", rename = "m")]
-    pub m_idx: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "id")]
+    pub method_id: Option<u16>,
 }
 
 impl Instruction {
@@ -111,7 +111,7 @@ impl Instruction {
                 actual: NonZeroUsize::new(raw_bytecode.len()).ok_or(InstructionError::End)?,
             });
         }
-        Ok(Some((Instruction { opcode, m_idx }, length)))
+        Ok(Some((Instruction { opcode, method_id: m_idx }, length)))
     }
 }
 
@@ -137,7 +137,7 @@ mod tests {
             Ok(Some((
                 Instruction {
                     opcode: Opcode::Move,
-                    m_idx: None
+                    method_id: None
                 },
                 1
             )))
@@ -177,7 +177,7 @@ mod tests {
             inst,
             Instruction {
                 opcode: Opcode::InvokeVirtual,
-                m_idx: Some(6)
+                method_id: Some(6)
             }
         );
     }
