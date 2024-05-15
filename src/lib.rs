@@ -7,13 +7,13 @@ mod errors;
 mod manifest;
 
 use ::dex::DexReader;
-use apk::Apk;
 use dex::get_methods;
 use log::{error, warn};
 use regex::{bytes::Regex as BytesRegex, Regex};
 use std::io::{Read, Seek};
 use zip::ZipArchive;
 
+pub use apk::Apk;
 pub use errors::ApkParseError;
 
 lazy_static! {
