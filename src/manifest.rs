@@ -43,50 +43,44 @@ pub fn parse(buf: &[u8]) -> Result<Option<Manifest>, ParseError> {
                 ..Default::default()
             };
             for node in root.children {
-                match node {
-                    Node::Element(mut element) => {
-                        let tag = element.get_tag();
-                        if tag == "uses-permission" {
-                            if let Some(name) = element.attributes.remove("android:name") {
-                                if let Some(perm) = name.strip_prefix("android.permission.") {
-                                    manifest.permissions.insert(perm.to_string());
-                                }
+                if let Node::Element(mut element) = node {
+                    match element.get_tag() {
+                        "uses-permission" => if let Some(name) = element.attributes.remove("android:name") {
+                            if let Some(perm) = name.strip_prefix("android.permission.") {
+                                manifest.permissions.insert(perm.to_string());
                             }
-                        } else if tag == "application" {
+                        },
+                        "application" => {
                             for node in element.children {
-                                match node {
-                                    Node::Element(mut element) => {
-                                        let tag = element.get_tag();
-                                        match tag {
-                                            "activity" => push_component!(
-                                                element,
-                                                &manifest,
-                                                manifest.activities
-                                            ),
-                                            "service" => push_component!(
-                                                element,
-                                                &manifest,
-                                                manifest.services
-                                            ),
-                                            "receiver" => push_component!(
-                                                element,
-                                                &manifest,
-                                                manifest.receivers
-                                            ),
-                                            "provider" => push_component!(
-                                                element,
-                                                &manifest,
-                                                manifest.providers
-                                            ),
-                                            _ => (),
-                                        }
+                                if let Node::Element(mut element) = node {
+                                    match element.get_tag() {
+                                        "activity" => push_component!(
+                                            element,
+                                            &manifest,
+                                            manifest.activities
+                                        ),
+                                        "service" => push_component!(
+                                            element,
+                                            &manifest,
+                                            manifest.services
+                                        ),
+                                        "receiver" => push_component!(
+                                            element,
+                                            &manifest,
+                                            manifest.receivers
+                                        ),
+                                        "provider" => push_component!(
+                                            element,
+                                            &manifest,
+                                            manifest.providers
+                                        ),
+                                        _ => (),
                                     }
-                                    _ => (),
                                 }
                             }
-                        }
+                        },
+                        _ => (),
                     }
-                    _ => (),
                 }
             }
             Ok(Some(manifest))
