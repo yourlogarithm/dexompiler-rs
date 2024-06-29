@@ -1,52 +1,25 @@
 #[macro_use]
 extern crate lazy_static;
 
-mod apk;
-mod dex;
-mod errors;
-mod manifest;
-
-use ::dex::DexReader;
-use apk::Apk;
-use dex::get_methods;
-use log::{error, warn};
-use regex::{bytes::Regex as BytesRegex, Regex};
 use std::io::{Read, Seek};
+
+use dex::{Dex, DexReader};
+use errors::ApkParseError;
+
+use instruction::{Instruction, InstructionError};
+use log::{error, warn};
+use regex::bytes::Regex;
 use zip::ZipArchive;
 
-pub use errors::ApkParseError;
+mod errors;
+mod instruction;
 
 lazy_static! {
-    static ref DEX_MAGIC: BytesRegex =
-        BytesRegex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
+    static ref DEX_MAGIC: Regex = Regex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
 }
 
-/// Parses a source of bytes (e.g., a .apk archive) into an `Apk` structure.
-///
-/// This function reads an APK archive, extracting its manifest and DEX (Dalvik Executable) files,
-/// and constructs an `Apk` with a sorted list of methods.
-///
-/// ### Arguments
-/// * `apk`: A reader and seeker that represents the apk archive.
-///
-/// ### Returns
-/// * `Result<Apk, ApkParseError>`: A successful parse yields an `Apk`, while failure results in an `ApkParseError`.
-///
-/// ### Example
-/// ```rust
-/// use dexompiler::parse;
-///
-/// fn main() {
-///     let file = std::fs::File::open("tests/example.apk").unwrap();
-///     let apk = parse(file).unwrap();
-///     println!("{apk:?}");
-///     let compact = apk.to_compact();
-///     println!("{compact:?}");
-/// }
-/// ```
-pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
+pub fn parse<R: Read + Seek>(apk: R) -> Result<(), ApkParseError> {
     let mut zip_archive = ZipArchive::new(apk)?;
-    let mut manifest = None;
     let mut dexes = Vec::new();
 
     for i in 0..zip_archive.len() {
@@ -64,44 +37,43 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
             continue;
         }
 
-        if file.name() == "AndroidManifest.xml" {
-            if manifest.is_some() {
-                warn!("Multiple AndroidManifest.xml files found in APK");
-            } else {
-                manifest = manifest::parse(&buf)?;
-            }
-        } else {
-            if DEX_MAGIC.is_match(&buf) {
-                match DexReader::from_vec(buf) {
-                    Ok(dex) => dexes.push(dex),
-                    Err(e) => error!("{e}"),
-                }
+        if DEX_MAGIC.is_match(&buf) {
+            match DexReader::from_vec(buf) {
+                Ok(dex) => dexes.push(dex),
+                Err(e) => error!("{e}"),
             }
         }
     }
 
-    let regexes = if let Some(ref m) = manifest {
-        match m
-            .activities
-            .iter()
-            .chain(m.services.iter())
-            .chain(m.receivers.iter())
-            .chain(m.providers.iter())
-            .map(|s| Regex::new(s.replace('.', "/").as_str()))
-            .collect::<Result<Vec<_>, _>>()
-        {
-            Ok(regexes) => Some(regexes),
-            Err(e) => {
-                error!("{e}");
-                None
+    parse_dexes(dexes).unwrap();
+
+    Ok(())
+}
+
+fn parse_dexes(dexes: Vec<Dex<Vec<u8>>>) -> Result<(), InstructionError> {
+    for dex in dexes.into_iter() {
+        for class in dex.classes().filter_map(Result::ok) {
+            let class_name = class.jtype().to_java_type();
+            for method in class.methods() {
+                let method_name = method.name();
+                println!("{class_name}.{method_name}");
+                if let Some(code_item) = method.code() {
+                    let mut iter = code_item.insns().into_iter().cloned().peekable();
+                    while let Some(inst) = Instruction::try_from_code(&mut iter)? {
+                        println!("{:?}", inst);
+                    }
+                }
             }
         }
-    } else {
-        None
-    };
+    }
+    Ok(())
+}
 
-    Ok(Apk {
-        manifest,
-        methods: get_methods(&dexes, regexes)?,
-    })
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        let fdroid = std::fs::File::open("F-Droid.apk").unwrap();
+        super::parse(fdroid).unwrap();
+    }
 }
