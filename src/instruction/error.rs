@@ -7,5 +7,5 @@ pub enum InstructionError {
     #[error("Opcode {0} does not exist")]
     BadOpcode(u8),
     #[error("Code ended abruptly")]
-    End
+    End,
 }

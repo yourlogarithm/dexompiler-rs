@@ -163,11 +163,11 @@ pub enum Instruction {
     },
     PackedSwitch {
         reg: u8,
-        off: i32
+        off: i32,
     },
     SparseSwitch {
         reg: u8,
-        off: i32
+        off: i32,
     },
     CmpKind {
         kind: CmpKind,
@@ -179,12 +179,12 @@ pub enum Instruction {
         kind: IfTest,
         a: u8,
         b: u8,
-        off: i16
+        off: i16,
     },
     IfTestZ {
         kind: IfTest,
         a: u8,
-        off: i16
+        off: i16,
     },
     ArrayOp {
         kind: Op,
@@ -286,7 +286,7 @@ pub enum CmpKind {
     GtFloat,
     LtDouble,
     GtDouble,
-    Long
+    Long,
 }
 
 #[derive(Debug)]
@@ -296,13 +296,13 @@ pub enum IfTest {
     Lt,
     Ge,
     Gt,
-    Le
+    Le,
 }
 
 #[derive(Debug)]
 pub enum Op {
     Get,
-    Put
+    Put,
 }
 
 #[derive(Debug)]
@@ -322,7 +322,7 @@ pub enum InvokeKind {
     Super,
     Direct,
     Static,
-    Interface
+    Interface,
 }
 
 #[derive(Debug)]
@@ -347,7 +347,7 @@ pub enum UnopKind {
     DoubleToFloat,
     IntToByte,
     IntToChar,
-    IntToShort
+    IntToShort,
 }
 
 #[derive(Debug)]
@@ -383,5 +383,5 @@ pub enum BinopKind {
     SubDouble,
     MulDouble,
     DivDouble,
-    RemDouble
+    RemDouble,
 }

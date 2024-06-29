@@ -58,7 +58,7 @@ fn parse_dexes(dexes: Vec<Dex<Vec<u8>>>) -> Result<(), InstructionError> {
                 let method_name = method.name();
                 println!("{class_name}.{method_name}");
                 if let Some(code_item) = method.code() {
-                    let mut iter = code_item.insns().into_iter().cloned().peekable();
+                    let mut iter = code_item.insns().iter().cloned().peekable();
                     while let Some(inst) = Instruction::try_from_code(&mut iter)? {
                         println!("{:?}", inst);
                     }

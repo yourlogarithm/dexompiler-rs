@@ -52,7 +52,7 @@ impl Instruction {
                     return Ok(None);
                 }
                 Self::Nop
-            },
+            }
             0x01 => {
                 let (dst, src) = byte_to_nibbles(immediate_args);
                 Self::Move { dst, src }
@@ -245,8 +245,13 @@ impl Instruction {
                     _ => unreachable!(),
                 };
                 let (src0, src1) = word_to_bytes(next!());
-                Self::CmpKind { kind, dst: immediate_args, src0, src1 }
-            },
+                Self::CmpKind {
+                    kind,
+                    dst: immediate_args,
+                    src0,
+                    src1,
+                }
+            }
             0x32..=0x37 => {
                 let kind = match opcode_byte {
                     0x32 => IfTest::Eq,
@@ -258,8 +263,13 @@ impl Instruction {
                     _ => unreachable!(),
                 };
                 let (a, b) = byte_to_nibbles(immediate_args);
-                Self::IfTest { kind, a, b, off: next!() as i16 }
-            },
+                Self::IfTest {
+                    kind,
+                    a,
+                    b,
+                    off: next!() as i16,
+                }
+            }
             0x38..=0x3D => {
                 let kind = match opcode_byte {
                     0x38 => IfTest::Eq,
@@ -270,14 +280,14 @@ impl Instruction {
                     0x3D => IfTest::Le,
                     _ => unreachable!(),
                 };
-                Self::IfTestZ { kind, a: immediate_args, off: next!() as i16 }
-            },
+                Self::IfTestZ {
+                    kind,
+                    a: immediate_args,
+                    off: next!() as i16,
+                }
+            }
             0x44..=0x51 => {
-                let kind = if opcode_byte < 0x4B {
-                    Op::Get
-                } else {
-                    Op::Put
-                };
+                let kind = if opcode_byte < 0x4B { Op::Get } else { Op::Put };
                 let kind_type = match opcode_byte {
                     0x44 | 0x4B => OpType::None,
                     0x45 | 0x4C => OpType::Wide,
@@ -289,14 +299,16 @@ impl Instruction {
                     _ => unreachable!(),
                 };
                 let (arr, idx) = word_to_bytes(next!());
-                Self::ArrayOp { kind, kind_type, val: immediate_args, arr, idx }
-            },
+                Self::ArrayOp {
+                    kind,
+                    kind_type,
+                    val: immediate_args,
+                    arr,
+                    idx,
+                }
+            }
             0x52..=0x5F => {
-                let kind = if opcode_byte < 0x59 {
-                    Op::Get
-                } else {
-                    Op::Put
-                };
+                let kind = if opcode_byte < 0x59 { Op::Get } else { Op::Put };
                 let kind_type = match opcode_byte {
                     0x52 | 0x59 => OpType::None,
                     0x53 | 0x5A => OpType::Wide,
@@ -308,14 +320,14 @@ impl Instruction {
                     _ => unreachable!(),
                 };
                 let (val, obj) = byte_to_nibbles(immediate_args);
-                Self::InstanceOp { val, obj, idx: next!() }
-            },
+                Self::InstanceOp {
+                    val,
+                    obj,
+                    idx: next!(),
+                }
+            }
             0x60..=0x6D => {
-                let kind = if opcode_byte < 0x67 {
-                    Op::Get
-                } else {
-                    Op::Put
-                };
+                let kind = if opcode_byte < 0x67 { Op::Get } else { Op::Put };
                 let kind_type = match opcode_byte {
                     0x60 | 0x67 => OpType::None,
                     0x61 | 0x68 => OpType::Wide,
@@ -326,8 +338,11 @@ impl Instruction {
                     0x66 | 0x6D => OpType::Short,
                     _ => unreachable!(),
                 };
-                Self::StaticOp { val: immediate_args, idx: next!() }
-            },
+                Self::StaticOp {
+                    val: immediate_args,
+                    idx: next!(),
+                }
+            }
             0x6E..=0x72 => {
                 let kind = match opcode_byte {
                     0x6E => InvokeKind::Virtual,
@@ -340,8 +355,17 @@ impl Instruction {
                 let (argc, c) = byte_to_nibbles(immediate_args);
                 let idx = next!();
                 let (d, e, f, g) = word_to_nibbles(next!());
-                Self::Invoke { kind, argc, idx, c, d, e, f, g }
-            },
+                Self::Invoke {
+                    kind,
+                    argc,
+                    idx,
+                    c,
+                    d,
+                    e,
+                    f,
+                    g,
+                }
+            }
             0x74..=0x78 => {
                 let kind = match opcode_byte {
                     0x74 => InvokeKind::Virtual,
@@ -351,8 +375,13 @@ impl Instruction {
                     0x78 => InvokeKind::Interface,
                     _ => unreachable!(),
                 };
-                Self::InvokeRange { kind, argc: immediate_args, idx: next!(), first: next!() }
-            },
+                Self::InvokeRange {
+                    kind,
+                    argc: immediate_args,
+                    idx: next!(),
+                    first: next!(),
+                }
+            }
             0x7B..=0x8F => {
                 let kind = match opcode_byte {
                     0x7B => UnopKind::NegInt,
@@ -380,7 +409,7 @@ impl Instruction {
                 };
                 let (dst, src) = byte_to_nibbles(immediate_args);
                 Self::Unop { kind, dst, src }
-            },
+            }
             0x90..=0xAF => {
                 let kind = match opcode_byte {
                     0x90 => BinopKind::AddInt,
@@ -418,8 +447,13 @@ impl Instruction {
                     _ => unreachable!(),
                 };
                 let (src0, src1) = word_to_bytes(next!());
-                Self::Binop { kind, dst: immediate_args, src0, src1 }
-            },
+                Self::Binop {
+                    kind,
+                    dst: immediate_args,
+                    src0,
+                    src1,
+                }
+            }
             0xB0..=0xCF => {
                 let kind = match opcode_byte {
                     0xB0 => BinopKind::AddInt,
@@ -458,7 +492,7 @@ impl Instruction {
                 };
                 let (dst, src) = byte_to_nibbles(immediate_args);
                 Self::Binop2Addr { kind, dst, src }
-            },
+            }
             0xD0..=0xE2 => {
                 let kind = match opcode_byte {
                     0xD0 | 0xD8 => BinopKind::AddInt,
@@ -476,35 +510,71 @@ impl Instruction {
                 };
                 if opcode_byte < 0xD8 {
                     let (dst, src) = byte_to_nibbles(immediate_args);
-                    Self::BinopLit { kind, dst, src, lit: next!() as i16 }
+                    Self::BinopLit {
+                        kind,
+                        dst,
+                        src,
+                        lit: next!() as i16,
+                    }
                 } else {
                     let (src, lit) = word_to_bytes(next!());
                     // TODO: Check if this is correct
-                    Self::BinopLit { kind, dst: immediate_args, src, lit: lit as i16 }
+                    Self::BinopLit {
+                        kind,
+                        dst: immediate_args,
+                        src,
+                        lit: lit as i16,
+                    }
                 }
-            },
+            }
             0xFA => {
                 let (argc, recv) = byte_to_nibbles(immediate_args);
                 let (d, e, f, g) = word_to_nibbles(next!());
                 let midx = next!();
                 let pidx = next!();
-                Self::InvokePolymorphic { argc, recv, midx, d, e, f, g, pidx }
-            },
+                Self::InvokePolymorphic {
+                    argc,
+                    recv,
+                    midx,
+                    d,
+                    e,
+                    f,
+                    g,
+                    pidx,
+                }
+            }
             0xFB => {
                 // TODO: Check if this is correct
                 let recv = next!();
                 let midx = next!();
                 let pidx = next!();
-                Self::InvokePolymorphicRange { argc: immediate_args, midx, recv, pidx }
-            },
+                Self::InvokePolymorphicRange {
+                    argc: immediate_args,
+                    midx,
+                    recv,
+                    pidx,
+                }
+            }
             0xFC => {
                 // TODO: Check if this is correct
                 let (argc, c) = byte_to_nibbles(immediate_args);
                 let (d, e, f, g) = word_to_nibbles(next!());
                 let idx = next!();
-                Self::InvokeCustom { argc, idx, c, d, e, f, g }
+                Self::InvokeCustom {
+                    argc,
+                    idx,
+                    c,
+                    d,
+                    e,
+                    f,
+                    g,
+                }
+            }
+            0xFD => Self::InvokeCustomRange {
+                argc: immediate_args,
+                idx: next!(),
+                first: next!(),
             },
-            0xFD => Self::InvokeCustomRange { argc: immediate_args, idx: next!(), first: next!() },
             0xFE => Self::ConstMethodHandle {
                 dst: immediate_args,
                 idx: next!(),
