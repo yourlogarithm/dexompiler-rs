@@ -17,12 +17,12 @@ pub struct F11x {
 
 #[derive(Debug)]
 pub struct F10t {
-    pub target: i8,
+    pub offset: i8,
 }
 
 #[derive(Debug)]
 pub struct F20t {
-    pub target: i16,
+    pub offset: i16,
 }
 
 #[derive(Debug)]
@@ -40,7 +40,7 @@ pub struct F22x {
 #[derive(Debug)]
 pub struct F21t {
     pub va: u8,
-    pub target: i16,
+    pub offset: i16,
 }
 
 #[derive(Debug)]
@@ -79,7 +79,7 @@ pub struct F22b {
 pub struct F22t {
     pub va: u8,
     pub vb: u8,
-    pub target: i16,
+    pub offset: i16,
 }
 
 #[derive(Debug)]
@@ -105,7 +105,7 @@ pub struct F22cs {
 
 #[derive(Debug)]
 pub struct F30t {
-    pub target: i32,
+    pub offset: i32,
 }
 
 #[derive(Debug)]
@@ -123,7 +123,7 @@ pub struct F31i {
 #[derive(Debug)]
 pub struct F31t {
     pub va: u8,
-    pub target: i32,
+    pub offset: i32,
 }
 
 #[derive(Debug)]
@@ -234,6 +234,55 @@ pub enum Format {
 }
 
 impl Format {
+    pub fn len(&self) -> usize {
+        match self {
+            Format::F10x => 1,
+            Format::F12x(_) => 1,
+            Format::F11n(_) => 1,
+            Format::F11x(_) => 1,
+            Format::F10t(_) => 1,
+            Format::F20t(_) => 2,
+            Format::F20bc(_) => 2,
+            Format::F22x(_) => 2,
+            Format::F21t(_) => 2,
+            Format::F21s(_) => 2,
+            Format::F21h(_) => 2,
+            Format::F21c(_) => 2,
+            Format::F23x(_) => 2,
+            Format::F22b(_) => 2,
+            Format::F22t(_) => 2,
+            Format::F22s(_) => 2,
+            Format::F22c(_) => 2,
+            Format::F22cs(_) => 2,
+            Format::F30t(_) => 3,
+            Format::F32x(_) => 3,
+            Format::F31i(_) => 3,
+            Format::F31t(_) => 3,
+            Format::F31c(_) => 3,
+            Format::F35c(_) => 3,
+            Format::F35ms(_) => 3,
+            Format::F35mi(_) => 3,
+            Format::F3rc(_) => 3,
+            Format::F3rms(_) => 3,
+            Format::F3rmi(_) => 3,
+            Format::F45cc(_) => 4,
+            Format::F4rcc(_) => 4,
+            Format::F51l(_) => 5,
+        }
+    }
+
+    pub fn offset(&self) -> Option<i32> {
+        match *self {
+            Format::F10t(F10t { offset }) => Some(offset as i32),
+            Format::F20t(F20t { offset }) => Some(offset as i32),
+            Format::F21t(F21t { offset, .. }) => Some(offset as i32),
+            Format::F22t(F22t { offset, .. }) => Some(offset as i32),
+            Format::F30t(F30t { offset, .. }) => Some(offset),
+            Format::F31t(F31t { offset, .. }) => Some(offset),
+            _ => None,
+        }
+    }
+
     pub fn as_12x(&self) -> Option<&F12x> {
         match self {
             Format::F12x(f) => Some(f),

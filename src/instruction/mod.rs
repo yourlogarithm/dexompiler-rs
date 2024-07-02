@@ -2,7 +2,7 @@ mod error;
 mod format;
 mod opcode;
 
-use std::iter::Peekable;
+use std::{collections::HashMap, iter::Peekable};
 
 pub use error::*;
 pub use format::*;
@@ -10,22 +10,30 @@ use num_traits::FromPrimitive;
 pub use opcode::Opcode;
 
 #[derive(Debug)]
-pub struct Instruction {
-    pub op: Opcode,
-    pub format: Format,
+pub enum Instruction {
+    Regular { op: Opcode, format: Format },
+    Switch {
+        kv: HashMap<i32, i32>,
+        code_units: u16,
+    },
+    FillArrayData {
+        size: u32,
+        element_width: usize,
+        data: Vec<Vec<u8>>
+    },
 }
 
-fn word_to_bytes(word: u16) -> (u8, u8) {
+const fn word_to_bytes(word: u16) -> (u8, u8) {
     let u2 = word.to_le_bytes();
     (u2[0], u2[1])
 }
 
-fn word_to_nibbles(word: u16) -> (u8, u8, u8, u8) {
+const fn word_to_nibbles(word: u16) -> (u8, u8, u8, u8) {
     let u2 = word.to_le_bytes();
     (u2[0] >> 4, u2[0] & 0x0F, u2[1] >> 4, u2[1] & 0x0F)
 }
 
-fn byte_to_nibbles(byte: u8) -> (u8, u8) {
+const fn byte_to_nibbles(byte: u8) -> (u8, u8) {
     (byte >> 4, byte & 0x0F)
 }
 
@@ -45,25 +53,70 @@ impl Instruction {
             };
         }
         macro_rules! dword {
-            () => {
-                (next!() as u32) << 16 | next!() as u32
-            };
+            () => {{
+                let a = next!();
+                let b = next!();
+                (b as u32) << 16 | a as u32
+            }};
         }
         macro_rules! qword {
             () => {
-                (next!() as u64) << 48
-                    | (next!() as u64) << 32
-                    | (next!() as u64) << 16
-                    | next!() as u64
-            };
+                {
+                    let a = dword!();
+                    let b = dword!();
+                    (b as u64) << 32 | a as u64
+                }
+            }
         }
         let format = match opcode_byte {
-            0x00 => {
-                if (1..=3).contains(&immediate_args) {
-                    return Ok(None);
+            0x00 => match immediate_args {
+                1 => {
+                    let size = next!();
+                    let first_key = dword!() as i32;
+                    let mut kv = HashMap::with_capacity(size as usize);
+                    for i in 0..size {
+                        let offset = dword!() as i32;
+                        kv.insert(first_key + i as i32, offset);
+                    }
+                    let code_units = size * 2 + 4;
+                    return Ok(Some(Instruction::Switch { kv, code_units }));
                 }
-                Format::F10x
-            }
+                2 => {
+                    let size = next!();
+                    let mut kv = HashMap::with_capacity(size as usize);
+
+                    for _ in 0..size {
+                        let key = dword!() as i32;
+                        let value = dword!() as i32;
+                        kv.insert(key, value);
+                    }
+                    
+                    let code_units = size * 4 + 2;
+                    return Ok(Some(Instruction::Switch { kv, code_units }));
+                }
+                3 => {
+                    let element_width = next!() as usize;
+                    let size = dword!();
+                    let words_to_use = (size as usize * (element_width) + 1) / 2;
+                    let mut words = Vec::with_capacity(words_to_use);
+                    for _ in 0..words_to_use {
+                        words.push(next!());
+                    }
+                    let bytes = words
+                        .iter()
+                        .flat_map(|&word| {
+                            let (a, b) = word_to_bytes(word);
+                            [a, b]
+                        })
+                        .collect::<Vec<_>>();
+                    let data: Vec<_> = bytes
+                        .chunks_exact(element_width)
+                        .map(|chunk| chunk.to_vec())
+                        .collect();
+                    return Ok(Some(Instruction::FillArrayData { size, element_width, data }));
+                }
+                _ => Format::F10x,
+            },
             0x01 => {
                 let (va, vb) = byte_to_nibbles(immediate_args);
                 Format::F12x(F12x { va, vb })
@@ -196,21 +249,21 @@ impl Instruction {
             }),
             0x26 => Format::F31t(F31t {
                 va: immediate_args,
-                target: dword!() as i32,
+                offset: dword!() as i32,
             }),
             0x27 => Format::F11x(F11x { va: immediate_args }),
             0x28 => Format::F10t(F10t {
-                target: immediate_args as i8,
+                offset: immediate_args as i8,
             }),
             0x29 => Format::F20t(F20t {
-                target: next!() as i16,
+                offset: next!() as i16,
             }),
             0x2A => Format::F30t(F30t {
-                target: dword!() as i32,
+                offset: dword!() as i32,
             }),
             0x2B..=0x2C => Format::F31t(F31t {
                 va: immediate_args,
-                target: dword!() as i32,
+                offset: dword!() as i32,
             }),
             0x2D..=0x31 => {
                 let (src0, src1) = word_to_bytes(next!());
@@ -225,12 +278,12 @@ impl Instruction {
                 Format::F22t(F22t {
                     va,
                     vb,
-                    target: next!() as i16,
+                    offset: next!() as i16,
                 })
             }
             0x38..=0x3D => Format::F21t(F21t {
                 va: immediate_args,
-                target: next!() as i16,
+                offset: next!() as i16,
             }),
             0x44..=0x51 => {
                 let (vb, vc) = word_to_bytes(next!());
@@ -341,6 +394,6 @@ impl Instruction {
         };
         let op =
             FromPrimitive::from_u8(opcode_byte).ok_or(InstructionError::BadOpcode(opcode_byte))?;
-        Ok(Some(Self { op, format }))
+        Ok(Some(Self::Regular { op, format }))
     }
 }

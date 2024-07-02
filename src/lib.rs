@@ -1,16 +1,21 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::io::{Read, Seek};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::RandomState,
+    io::{Read, Seek},
+};
 
-use dex::{Dex, DexReader};
+use dex::{code::CodeItem, method::Method, Dex, DexReader};
 use errors::ApkParseError;
 
-use instruction::{Instruction, InstructionError};
+use instruction::{Instruction, InstructionError, Opcode};
 use log::{error, warn};
 use regex::bytes::Regex;
 use zip::ZipArchive;
 
+mod block;
 mod errors;
 mod instruction;
 
@@ -55,17 +60,75 @@ fn parse_dexes(dexes: Vec<Dex<Vec<u8>>>) -> Result<(), InstructionError> {
         for class in dex.classes().filter_map(Result::ok) {
             let class_name = class.jtype().to_java_type();
             for method in class.methods() {
-                let method_name = method.name();
-                println!("{class_name}.{method_name}");
-                if let Some(code_item) = method.code() {
-                    let mut iter = code_item.insns().iter().cloned().peekable();
-                    while let Some(inst) = Instruction::try_from_code(&mut iter)? {
-                        println!("    {inst:?}");
-                    }
-                }
+                let Some(code_item) = method.code() else {
+                    continue;
+                };
+                parse_method(code_item, method, &class_name)?;
             }
         }
     }
+    Ok(())
+}
+
+fn parse_method(
+    code_item: &CodeItem,
+    method: &Method,
+    class_name: &String,
+) -> Result<(), InstructionError> {
+    let mut iter = code_item.insns().iter().cloned().peekable();
+    let mut pos = 0;
+    let mut instructions = Vec::new();
+
+    let mut switch_position_mapping = HashMap::new();
+    // FIXME: Wrong, any basick block between the try and catch will be considered predecessor of the catch
+    // FIXME: This considers only the first basick block start address
+    let mut entry_points: HashMap<_, HashSet<_, RandomState>> = code_item
+        .tries()
+        .iter()
+        .flat_map(|t| {
+            t.catch_handlers().into_iter().map(|h| {
+                (
+                    h.addr(),
+                    HashSet::from_iter(std::iter::once(t.start_addr())),
+                )
+            })
+        })
+        .collect();
+
+    while let Some(inst) = Instruction::try_from_code(&mut iter)? {
+        let size = match inst {
+            Instruction::Regular { op, ref format } => {
+                if op == Opcode::PackedSwitch || op == Opcode::SparseSwitch {
+                    let offset = format.offset().ok_or(InstructionError::BadFormat(op))?;
+                    switch_position_mapping.insert(pos as i32 + offset, pos);
+                } else if let Some(offset) = format.offset() {
+                    let entry = entry_points
+                        .entry((pos as i32 + offset) as u64)
+                        .or_default();
+                    entry.insert(pos);
+                }
+                format.len() as u32
+            }
+            Instruction::Switch { ref kv, code_units } => {
+                let call_position = switch_position_mapping
+                    .remove(&(pos as i32))
+                    .ok_or(InstructionError::MissingSwitchOrigin(pos))?;
+                let entry = entry_points.entry(call_position as u64).or_default();
+                entry.extend(kv.values().map(|&v| (call_position as i32 + v) as u32));
+                code_units as u32
+            }
+            Instruction::FillArrayData {
+                size,
+                element_width,
+                ..
+            } => (size as u32 * element_width as u32 + 1) / 2 + 4,
+        };
+        instructions.push((pos, inst));
+        pos += size;
+    }
+
+    println!("{class_name}.{} <=> {entry_points:?}", method.name());
+
     Ok(())
 }
 
