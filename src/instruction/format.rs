@@ -57,7 +57,7 @@ pub struct F21h {
 
 #[derive(Debug)]
 pub struct F21c {
-    pub va: u8,
+    pub dst: u8,
     pub idx: u16,
 }
 
@@ -134,7 +134,7 @@ pub struct F31c {
 
 #[derive(Debug)]
 pub struct F35c {
-    pub va: u8,
+    pub argc: u8,
     pub args: [u8; 5],
     pub idx: u16,
 }
@@ -155,7 +155,7 @@ pub struct F35mi {
 
 #[derive(Debug)]
 pub struct F3rc {
-    pub va: u8,
+    pub argc: u8,
     pub reg: u16,
     pub idx: u16,
 }
@@ -176,7 +176,7 @@ pub struct F3rmi {
 
 #[derive(Debug)]
 pub struct F45cc {
-    pub va: u8,
+    pub argc: u8,
     pub vg: u8,
     pub args: [u8; 5],
     pub meth: u16,
@@ -185,7 +185,7 @@ pub struct F45cc {
 
 #[derive(Debug)]
 pub struct F4rcc {
-    pub va: u8,
+    pub argc: u8,
     pub reg: u16,
     pub meth: u16,
     pub proto: u16,

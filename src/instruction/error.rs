@@ -10,8 +10,6 @@ pub enum InstructionError {
     BadOpcode(u8),
     #[error("Opcode {0:?} has bad format")]
     BadFormat(Opcode),
-    #[error("Missing switch origin for {0}")]
-    MissingSwitchOrigin(u32),
     #[error("Code ended abruptly")]
     End,
 }

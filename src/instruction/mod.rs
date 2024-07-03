@@ -6,35 +6,32 @@ use std::{collections::HashMap, iter::Peekable};
 
 pub use error::*;
 pub use format::*;
-use num_traits::FromPrimitive;
+use num_traits::{FromPrimitive, ToBytes};
 pub use opcode::Opcode;
 
 #[derive(Debug)]
 pub enum Instruction {
-    Regular { op: Opcode, format: Format },
-    Switch {
+    Regular {
+        op: Opcode,
+        format: Format,
+    },
+    SwitchPayload {
         kv: HashMap<i32, i32>,
         code_units: u16,
     },
-    FillArrayData {
-        size: u32,
-        element_width: usize,
-        data: Vec<Vec<u8>>
+    FillArrayDataPayload {
+        code_units: u32,
+        data: Vec<Vec<u8>>,
     },
 }
 
-const fn word_to_bytes(word: u16) -> (u8, u8) {
-    let u2 = word.to_le_bytes();
-    (u2[0], u2[1])
-}
-
 const fn word_to_nibbles(word: u16) -> (u8, u8, u8, u8) {
-    let u2 = word.to_le_bytes();
-    (u2[0] >> 4, u2[0] & 0x0F, u2[1] >> 4, u2[1] & 0x0F)
+    let [a, b] = word.to_le_bytes();
+    (a & 0x0F, a >> 4, b & 0x0F, b >> 4)
 }
 
 const fn byte_to_nibbles(byte: u8) -> (u8, u8) {
-    (byte >> 4, byte & 0x0F)
+    (byte & 0x0F, byte >> 4)
 }
 
 impl Instruction {
@@ -44,7 +41,7 @@ impl Instruction {
         let Some(start) = bytecode_iterator.next() else {
             return Ok(None);
         };
-        let (opcode_byte, immediate_args) = word_to_bytes(start);
+        let [opcode_byte, immediate_args] = start.to_le_bytes();
         macro_rules! next {
             () => {
                 bytecode_iterator
@@ -60,13 +57,11 @@ impl Instruction {
             }};
         }
         macro_rules! qword {
-            () => {
-                {
-                    let a = dword!();
-                    let b = dword!();
-                    (b as u64) << 32 | a as u64
-                }
-            }
+            () => {{
+                let a = dword!();
+                let b = dword!();
+                (b as u64) << 32 | a as u64
+            }};
         }
         let format = match opcode_byte {
             0x00 => match immediate_args {
@@ -79,7 +74,7 @@ impl Instruction {
                         kv.insert(first_key + i as i32, offset);
                     }
                     let code_units = size * 2 + 4;
-                    return Ok(Some(Instruction::Switch { kv, code_units }));
+                    return Ok(Some(Instruction::SwitchPayload { kv, code_units }));
                 }
                 2 => {
                     let size = next!();
@@ -90,9 +85,9 @@ impl Instruction {
                         let value = dword!() as i32;
                         kv.insert(key, value);
                     }
-                    
+
                     let code_units = size * 4 + 2;
-                    return Ok(Some(Instruction::Switch { kv, code_units }));
+                    return Ok(Some(Instruction::SwitchPayload { kv, code_units }));
                 }
                 3 => {
                     let element_width = next!() as usize;
@@ -104,16 +99,14 @@ impl Instruction {
                     }
                     let bytes = words
                         .iter()
-                        .flat_map(|&word| {
-                            let (a, b) = word_to_bytes(word);
-                            [a, b]
-                        })
+                        .flat_map(|word| word.to_le_bytes())
                         .collect::<Vec<_>>();
                     let data: Vec<_> = bytes
                         .chunks_exact(element_width)
                         .map(|chunk| chunk.to_vec())
                         .collect();
-                    return Ok(Some(Instruction::FillArrayData { size, element_width, data }));
+                    let code_units = (size * element_width as u32 + 1) / 2 + 4;
+                    return Ok(Some(Instruction::FillArrayDataPayload { code_units, data }));
                 }
                 _ => Format::F10x,
             },
@@ -192,7 +185,7 @@ impl Instruction {
                 literal: next!() as i16,
             }),
             0x1A => Format::F21c(F21c {
-                va: immediate_args,
+                dst: immediate_args,
                 idx: next!(),
             }),
             0x1B => Format::F31c(F31c {
@@ -200,12 +193,12 @@ impl Instruction {
                 idx: dword!(),
             }),
             0x1C => Format::F21c(F21c {
-                va: immediate_args,
+                dst: immediate_args,
                 idx: next!(),
             }),
             0x1D..=0x1E => Format::F11x(F11x { va: immediate_args }),
             0x1F => Format::F21c(F21c {
-                va: immediate_args,
+                dst: immediate_args,
                 idx: next!(),
             }),
             0x20 => {
@@ -221,7 +214,7 @@ impl Instruction {
                 Format::F12x(F12x { va, vb })
             }
             0x22 => Format::F21c(F21c {
-                va: immediate_args,
+                dst: immediate_args,
                 idx: next!(),
             }),
             0x23 => {
@@ -233,17 +226,17 @@ impl Instruction {
                 })
             }
             0x24 => {
-                let (va, vg) = byte_to_nibbles(immediate_args);
+                let (argc, vg) = byte_to_nibbles(immediate_args);
                 let idx = next!();
-                let (vf, ve, vd, vc) = word_to_nibbles(next!());
+                let (vc, vd, ve, vf) = word_to_nibbles(next!());
                 Format::F35c(F35c {
-                    va,
+                    argc,
                     args: [vc, vd, ve, vf, vg],
                     idx,
                 })
             }
             0x25 => Format::F3rc(F3rc {
-                va: immediate_args,
+                argc: immediate_args,
                 reg: next!(),
                 idx: next!(),
             }),
@@ -266,7 +259,7 @@ impl Instruction {
                 offset: dword!() as i32,
             }),
             0x2D..=0x31 => {
-                let (src0, src1) = word_to_bytes(next!());
+                let [src0, src1] = next!().to_le_bytes();
                 Format::F23x(F23x {
                     va: immediate_args,
                     vb: src0,
@@ -286,7 +279,7 @@ impl Instruction {
                 offset: next!() as i16,
             }),
             0x44..=0x51 => {
-                let (vb, vc) = word_to_bytes(next!());
+                let [vb, vc] = next!().to_le_bytes();
                 Format::F23x(F23x {
                     va: immediate_args,
                     vb,
@@ -302,21 +295,21 @@ impl Instruction {
                 })
             }
             0x60..=0x6D => Format::F21c(F21c {
-                va: immediate_args,
+                dst: immediate_args,
                 idx: next!(),
             }),
             0x6E..=0x72 => {
-                let (va, vg) = byte_to_nibbles(immediate_args);
+                let (argc, vg) = byte_to_nibbles(immediate_args);
                 let idx = next!();
-                let (vf, ve, vd, vc) = word_to_nibbles(next!());
+                let (vc, vd, ve, vf) = word_to_nibbles(next!());
                 Format::F35c(F35c {
-                    va,
+                    argc,
                     args: [vc, vd, ve, vf, vg],
                     idx,
                 })
             }
             0x74..=0x78 => Format::F3rc(F3rc {
-                va: immediate_args,
+                argc: immediate_args,
                 reg: next!(),
                 idx: next!(),
             }),
@@ -325,7 +318,7 @@ impl Instruction {
                 Format::F12x(F12x { va, vb })
             }
             0x90..=0xAF => {
-                let (vb, vc) = word_to_bytes(next!());
+                let [vb, vc] = next!().to_le_bytes();
                 Format::F23x(F23x {
                     va: immediate_args,
                     vb,
@@ -345,7 +338,7 @@ impl Instruction {
                 })
             }
             0xD8..=0xE2 => {
-                let (vb, literal) = word_to_bytes(next!());
+                let [vb, literal] = next!().to_le_bytes();
                 Format::F22b(F22b {
                     va: immediate_args,
                     vb,
@@ -353,12 +346,12 @@ impl Instruction {
                 })
             }
             0xFA => {
-                let (va, vg) = byte_to_nibbles(immediate_args);
+                let (argc, vg) = byte_to_nibbles(immediate_args);
                 let meth = next!();
-                let (vf, ve, vd, vc) = word_to_nibbles(next!());
+                let (vc, vd, ve, vf) = word_to_nibbles(next!());
                 let proto = next!();
                 Format::F45cc(F45cc {
-                    va,
+                    argc,
                     vg,
                     args: [vc, vd, ve, vf, vg],
                     meth,
@@ -366,7 +359,7 @@ impl Instruction {
                 })
             }
             0xFB => Format::F4rcc(F4rcc {
-                va: immediate_args,
+                argc: immediate_args,
                 reg: next!(),
                 meth: next!(),
                 proto: next!(),
@@ -374,20 +367,20 @@ impl Instruction {
             0xFC => {
                 let (va, vg) = byte_to_nibbles(immediate_args);
                 let idx = next!();
-                let (vf, ve, vd, vc) = word_to_nibbles(next!());
+                let (vc, vd, ve, vf) = word_to_nibbles(next!());
                 Format::F35c(F35c {
-                    va,
+                    argc: va,
                     args: [vc, vd, ve, vf, vg],
                     idx,
                 })
             }
             0xFD => Format::F3rc(F3rc {
-                va: immediate_args,
+                argc: immediate_args,
                 reg: next!(),
                 idx: next!(),
             }),
             0xFE..=0xFF => Format::F21c(F21c {
-                va: immediate_args,
+                dst: immediate_args,
                 idx: next!(),
             }),
             _ => return Err(InstructionError::BadOpcode(opcode_byte)),

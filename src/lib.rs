@@ -1,21 +1,20 @@
+#![feature(extract_if)]
+
 #[macro_use]
 extern crate lazy_static;
 
-use std::{
-    collections::{HashMap, HashSet},
-    hash::RandomState,
-    io::{Read, Seek},
-};
+use std::io::{Read, Seek};
 
+use cfg::CallGraphError;
 use dex::{code::CodeItem, method::Method, Dex, DexReader};
 use errors::ApkParseError;
 
-use instruction::{Instruction, InstructionError, Opcode};
+use instruction::Instruction;
 use log::{error, warn};
 use regex::bytes::Regex;
 use zip::ZipArchive;
 
-mod block;
+mod cfg;
 mod errors;
 mod instruction;
 
@@ -55,7 +54,7 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<(), ApkParseError> {
     Ok(())
 }
 
-fn parse_dexes(dexes: Vec<Dex<Vec<u8>>>) -> Result<(), InstructionError> {
+fn parse_dexes(dexes: Vec<Dex<Vec<u8>>>) -> Result<(), CallGraphError> {
     for dex in dexes.into_iter() {
         for class in dex.classes().filter_map(Result::ok) {
             let class_name = class.jtype().to_java_type();
@@ -74,61 +73,22 @@ fn parse_method(
     code_item: &CodeItem,
     method: &Method,
     class_name: &String,
-) -> Result<(), InstructionError> {
-    let mut iter = code_item.insns().iter().cloned().peekable();
+) -> Result<(), CallGraphError> {
     let mut pos = 0;
-    let mut instructions = Vec::new();
-
-    let mut switch_position_mapping = HashMap::new();
-    // FIXME: Wrong, any basick block between the try and catch will be considered predecessor of the catch
-    // FIXME: This considers only the first basick block start address
-    let mut entry_points: HashMap<_, HashSet<_, RandomState>> = code_item
-        .tries()
-        .iter()
-        .flat_map(|t| {
-            t.catch_handlers().into_iter().map(|h| {
-                (
-                    h.addr(),
-                    HashSet::from_iter(std::iter::once(t.start_addr())),
-                )
-            })
-        })
-        .collect();
-
+    let mut iter = code_item.insns().iter().cloned().peekable();
+    let mut cfg = cfg::ControlFlowGraph::new();
+    let name = format!("{}.{}", class_name, method.name());
     while let Some(inst) = Instruction::try_from_code(&mut iter)? {
         let size = match inst {
-            Instruction::Regular { op, ref format } => {
-                if op == Opcode::PackedSwitch || op == Opcode::SparseSwitch {
-                    let offset = format.offset().ok_or(InstructionError::BadFormat(op))?;
-                    switch_position_mapping.insert(pos as i32 + offset, pos);
-                } else if let Some(offset) = format.offset() {
-                    let entry = entry_points
-                        .entry((pos as i32 + offset) as u64)
-                        .or_default();
-                    entry.insert(pos);
-                }
-                format.len() as u32
-            }
-            Instruction::Switch { ref kv, code_units } => {
-                let call_position = switch_position_mapping
-                    .remove(&(pos as i32))
-                    .ok_or(InstructionError::MissingSwitchOrigin(pos))?;
-                let entry = entry_points.entry(call_position as u64).or_default();
-                entry.extend(kv.values().map(|&v| (call_position as i32 + v) as u32));
-                code_units as u32
-            }
-            Instruction::FillArrayData {
-                size,
-                element_width,
-                ..
-            } => (size as u32 * element_width as u32 + 1) / 2 + 4,
+            Instruction::Regular { ref format, .. } => format.len() as u32,
+            Instruction::SwitchPayload { code_units, .. } => code_units as u32,
+            Instruction::FillArrayDataPayload { code_units, .. } => code_units,
         };
-        instructions.push((pos, inst));
+        cfg.add_instruction(pos, inst)?;
         pos += size;
     }
-
-    println!("{class_name}.{} <=> {entry_points:?}", method.name());
-
+    let blocks = cfg.into_basic_blocks()?;
+    println!("{}.{}\n{blocks:#?}", class_name, method.name());
     Ok(())
 }
 
@@ -138,5 +98,6 @@ mod tests {
     fn it_works() {
         let fdroid = std::fs::File::open("F-Droid.apk").unwrap();
         super::parse(fdroid).unwrap();
+        panic!()
     }
 }
