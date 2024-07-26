@@ -12,18 +12,28 @@ pub struct BasicBlock {
     pub start: u32,
     pub end: u32,
     pub instructions: Vec<Instruction>,
-    pub successors: Vec<u32>,
+    pub successors: Vec<usize>,
+    pub predecessors: Vec<usize>,
+    pub dominators: HashSet<usize>,
 }
 
+#[derive(Debug)]
+pub struct Loop {
+    pub header: usize,
+    pub blocks: HashSet<usize>,
+}
+
+pub type LoopSet = Vec<Loop>;
+
 #[derive(Debug, Default)]
-pub struct ControlFlowGraph {
+pub struct MethodCFG {
     instructions: Vec<(u32, Instruction)>,
     switch_payload_origin: HashMap<u32, Vec<u32>>,
     switch_branch_targets: HashMap<u32, Vec<u32>>,
     leaders: HashSet<u32>,
 }
 
-impl ControlFlowGraph {
+impl MethodCFG {
     pub fn new() -> Self {
         Self::default()
     }
@@ -86,57 +96,94 @@ impl ControlFlowGraph {
     }
 
     pub fn into_basic_blocks(self) -> Result<Vec<BasicBlock>, CallGraphError> {
-        let mut blocks = Vec::new();
         let mut instructions = self.instructions;
-        let mut switch_branch_targets = self.switch_branch_targets;
         let Some(&max) = instructions.iter().map(|(addr, _)| addr).max() else {
-            return Ok(blocks);
+            return Ok(vec![]);
         };
+        let mut blocks = Vec::new();
+        let mut switch_branch_targets = self.switch_branch_targets;
         let mut sorted_leaders: Vec<_> = self.leaders.iter().cloned().collect();
         sorted_leaders.sort_unstable();
-
+        let mut predecessors_mapping: HashMap<u32, Vec<usize>> = HashMap::new();
+        let mut successors_mapping: HashMap<usize, Vec<u32>> = HashMap::new();
         for (i, &start) in sorted_leaders.iter().enumerate() {
             let end = if i < sorted_leaders.len() - 1 {
                 sorted_leaders[i + 1] - 1
             } else {
                 max
             };
-            let instructions: Vec<_> = instructions
+            let idx = blocks.len();
+            let local_instructions: Vec<_> = instructions
                 .extract_if(|(pos, _)| *pos >= start && *pos <= end)
                 .collect();
-            let mut successors = Vec::new();
-            for (addr, inst) in instructions.iter() {
+            let entry = successors_mapping.entry(idx).or_default();
+            for (addr, inst) in local_instructions.iter() {
                 match inst {
                     Instruction::Regular { op, format } => match op {
                         Opcode::Goto | Opcode::Goto16 | Opcode::Goto32 => {
-                            successors.push(Self::target(*op, *addr, &format)?);
+                            entry.push(Self::target(*op, *addr, &format)?);
                         }
                         Opcode::PackedSwitch | Opcode::SparseSwitch => {
-                            successors.extend(
+                            entry.extend(
                                 switch_branch_targets
                                     .remove(&addr)
                                     .ok_or(CallGraphError::MissingSwitchOrigin(*addr))?,
                             );
-                            successors.push(addr + format.len() as u32);
+                            entry.push(addr + format.len() as u32);
                         }
                         Opcode::FillArrayData => {}
                         _ => {
                             if let Some(offset) = format.offset() {
-                                successors.push((*addr as i32 + offset) as u32);
-                                successors.push(*addr + format.len() as u32);
+                                entry.push((*addr as i32 + offset) as u32);
+                                entry.push(*addr + format.len() as u32);
+                            } else {
+                                entry.push(*addr + format.len() as u32);
                             }
                         }
                     },
                     other => warn!("Unexpected instruction: {other:?}"),
                 }
             }
-            blocks.push(BasicBlock {
+            for successor in successors_mapping[&idx].iter().cloned() {
+                predecessors_mapping.entry(successor).or_default().push(idx);
+            }
+            blocks.push((
                 start,
                 end,
-                instructions: instructions.into_iter().map(|(_, inst)| inst).collect(),
-                successors,
-            });
+                local_instructions
+                    .into_iter()
+                    .map(|(_, inst)| inst)
+                    .collect::<Vec<_>>(),
+            ));
         }
+
+        let mut start_to_idx: HashMap<_, _> = blocks
+            .iter()
+            .enumerate()
+            .map(|(i, (start, _, _))| (*start, i))
+            .collect();
+
+        let blocks = blocks
+            .into_iter()
+            .enumerate()
+            .map(|(i, (start, end, instructions))| {
+                let predecessors = predecessors_mapping.remove(&start).unwrap_or_default();
+                let successors = successors_mapping
+                    .remove(&i)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|addr| start_to_idx.remove(&addr))
+                    .collect();
+                BasicBlock {
+                    start,
+                    end,
+                    instructions,
+                    predecessors,
+                    successors,
+                    dominators: HashSet::new()
+                }
+            })
+            .collect();
 
         Ok(blocks)
     }
