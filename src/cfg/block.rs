@@ -1,10 +1,10 @@
 use bitvec::prelude::*;
-use std::collections::{HashMap, HashSet};
 use log::warn;
+use std::collections::{HashMap, HashSet};
 
 use crate::instruction::{Instruction, Opcode};
 
-use super::{CallGraphError, MethodCFG};
+use super::{r#loop::Loop, CallGraphError, MethodCFG};
 
 #[derive(Debug)]
 pub struct BasicBlock {
@@ -42,7 +42,7 @@ impl BasicBlock {
                 .extract_if(|(pos, _)| *pos >= start && *pos <= end)
                 .collect();
             let entry = successors_mapping.entry(idx).or_default();
-            for (addr, inst) in local_instructions.iter() {
+            for (i, (addr, inst)) in local_instructions.iter().enumerate() {
                 match inst {
                     Instruction::Regular { op, format } => match op {
                         Opcode::Goto | Opcode::Goto16 | Opcode::Goto32 => {
@@ -56,12 +56,17 @@ impl BasicBlock {
                             );
                             entry.push(addr + format.len() as u32);
                         }
-                        Opcode::FillArrayData => {}
+                        Opcode::FillArrayData
+                        | Opcode::ReturnVoid
+                        | Opcode::Return
+                        | Opcode::ReturnWide
+                        | Opcode::ReturnObject
+                        | Opcode::Throw => {}
                         _ => {
                             if let Some(offset) = format.offset() {
                                 entry.push((*addr as i32 + offset) as u32);
                                 entry.push(*addr + format.len() as u32);
-                            } else {
+                            } else if i == local_instructions.len() - 1 {
                                 entry.push(*addr + format.len() as u32);
                             }
                         }
@@ -81,7 +86,7 @@ impl BasicBlock {
                     .collect::<Vec<_>>(),
             });
         }
-        let mut start_to_idx: HashMap<_, _> = blocks
+        let start_to_idx: HashMap<_, _> = blocks
             .iter()
             .enumerate()
             .map(|(i, block)| (block.start, i))
@@ -92,13 +97,13 @@ impl BasicBlock {
         loop {
             let mut changed = false;
             for (i, block) in blocks.iter().enumerate().skip(1) {
-                let Some(predecessors) = predecessors_mapping.remove(&block.start) else {
+                let Some(predecessors) = predecessors_mapping.get(&block.start) else {
                     log::warn!("No predecessors for block at {:x}", block.start);
                     continue;
                 };
                 for pred in predecessors {
                     let old = dominators[i].clone();
-                    let pred_dominators = dominators[pred].clone();
+                    let pred_dominators = dominators[*pred].clone();
                     dominators[i] = old.clone() & pred_dominators;
                     dominators[i].set(i, true);
                     if dominators[i] != old {
@@ -110,8 +115,52 @@ impl BasicBlock {
                 break;
             }
         }
-        println!("{dominators:#?}");
+        let mut loop_set = vec![];
+        for (i, block) in blocks.iter().enumerate().skip(1) {
+            let Some(successors) = successors_mapping.get(&i) else {
+                log::warn!("No successors for block at {:x}", block.start);
+                continue;
+            };
+            for successor in successors.into_iter().map(|addr| start_to_idx[&addr]) {
+                if dominators[i][successor] {
+                    loop_set.push(Self::natural_for_loop_edge(
+                        &blocks[successor],
+                        block,
+                        &blocks,
+                        &predecessors_mapping,
+                    ))
+                }
+            }
+        }
+        println!("Loop set {loop_set:#?}",);
         todo!()
+    }
+
+    fn natural_for_loop_edge<'a>(
+        header: &'a BasicBlock,
+        tail: &'a BasicBlock,
+        blocks: &'a [BasicBlock],
+        predecessors_mapping: &HashMap<u32, Vec<usize>>,
+    ) -> Loop<'a> {
+        let mut worklist = Vec::new();
+        let mut loop_ = Loop::new(header);
+        if header.start != tail.start {
+            loop_.add_block(tail);
+            worklist.push(tail);
+        }
+        while let Some(block) = worklist.pop() {
+            let Some(predecessors) = predecessors_mapping.get(&block.start) else {
+                log::warn!("No predecessors for block at {:x}", block.start);
+                continue;
+            };
+            for predecessor in predecessors.into_iter().map(|&idx| &blocks[idx]) {
+                if !loop_.contains(predecessor) {
+                    loop_.add_block(predecessor);
+                    worklist.push(predecessor);
+                }
+            }
+        }
+        return loop_;
     }
 
     // pub fn into_basic_blocks(self) -> Result<Vec<BasicBlock>, CallGraphError> {

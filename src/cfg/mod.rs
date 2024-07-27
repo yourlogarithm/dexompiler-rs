@@ -1,5 +1,6 @@
 mod block;
 mod error;
+mod r#loop;
 
 pub use block::BasicBlock;
 pub use error::CallGraphError;
