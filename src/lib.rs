@@ -3,12 +3,9 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::{
-    collections::{HashSet, VecDeque},
-    io::{Read, Seek},
-};
+use std::io::{Read, Seek};
 
-use cfg::{BasicBlock, CallGraphError, Loop, LoopSet};
+use cfg::{BasicBlock, CallGraphError};
 use dex::{Dex, DexReader};
 use errors::ApkParseError;
 
@@ -85,89 +82,9 @@ fn parse_method(code: Vec<u16>) -> Result<(), CallGraphError> {
         cfg.add_instruction(pos, inst)?;
         pos += size;
     }
-    let mut blocks = cfg.into_basic_blocks()?;
-    compute_dominators(&mut blocks);
-    let loops = compute_natural_loops(&blocks);
-    // println!("Loops:");
-    // for l in loops {
-    //     println!("{l:?}");
-    // }
+    let mut blocks = BasicBlock::from_method_cfg(cfg)?;
     println!("{blocks:#?}");
     Ok(())
-}
-
-pub fn compute_dominators(blocks: &mut Vec<BasicBlock>) {
-    let n_blocks = blocks.len();
-
-    for block in blocks.iter_mut() {
-        block.dominators = (0..n_blocks).collect();
-    }
-
-    if !blocks.is_empty() {
-        blocks[0].dominators = HashSet::from([0]);
-    }
-
-    let mut changed = true;
-    while changed {
-        changed = false;
-
-        for i in 1..n_blocks {
-            let mut new_doms: HashSet<usize> = (0..n_blocks).collect();
-
-            for &pred in &blocks[i].predecessors {
-                new_doms = new_doms
-                    .intersection(&blocks[pred].dominators)
-                    .cloned()
-                    .collect();
-            }
-
-            new_doms.insert(i);
-
-            if new_doms != blocks[i].dominators {
-                blocks[i].dominators = new_doms;
-                changed = true;
-            }
-        }
-    }
-}
-
-pub fn natural_loop_for_edge(blocks: &[BasicBlock], header: usize, tail: usize) -> Loop {
-    let mut loop_struct = Loop {
-        header,
-        blocks: HashSet::from([header]),
-    };
-
-    let mut work_list = VecDeque::new();
-
-    if header != tail {
-        loop_struct.blocks.insert(tail);
-        work_list.push_back(tail);
-    }
-
-    while let Some(block) = work_list.pop_front() {
-        for &pred in &blocks[block].predecessors {
-            if !loop_struct.blocks.contains(&pred) {
-                loop_struct.blocks.insert(pred);
-                work_list.push_back(pred);
-            }
-        }
-    }
-
-    loop_struct
-}
-
-pub fn compute_natural_loops(blocks: &[BasicBlock]) -> LoopSet {
-    let mut loop_set = LoopSet::new();
-
-    for (i, block) in blocks.iter().enumerate().skip(1) {
-        for &succ in &block.successors {
-            if block.dominators.contains(&succ) {
-                loop_set.push(natural_loop_for_edge(blocks, succ, i));
-            }
-        }
-    }
-
-    loop_set
 }
 
 #[cfg(test)]

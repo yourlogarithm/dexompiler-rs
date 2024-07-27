@@ -23,4 +23,5 @@ regex = "1.10.5"
 lazy_static = "1.5.0"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
+bitvec = "1.0.1"
 
