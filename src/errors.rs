@@ -1,40 +1,29 @@
-use super::instruction::InstructionError;
 use thiserror::Error;
-use zip::result::ZipError;
+
+use crate::instruction::Opcode;
 
 #[derive(Debug, Error)]
-pub enum ApkParseError {
-    #[error("Failed to read archive: {0}")]
-    ZipError(ZipError),
-    #[error("Failed to parse DEX file: {0}")]
-    DexError(DexError),
-}
-
-impl From<ZipError> for ApkParseError {
-    fn from(e: ZipError) -> Self {
-        ApkParseError::ZipError(e)
-    }
-}
-
-impl From<DexError> for ApkParseError {
-    fn from(e: DexError) -> Self {
-        ApkParseError::DexError(e)
-    }
+pub enum InstructionError {
+    #[error("Instruction is too short for {0:?}")]
+    TooShort(u8),
+    #[error("Opcode {0} does not exist")]
+    BadOpcode(u8),
+    #[error("Opcode {0:?} has bad format")]
+    BadFormat(Opcode),
+    #[error("Code ended abruptly")]
+    End,
 }
 
 #[derive(Debug, Error)]
-pub struct DexError {
-    pub class_name: String,
-    pub method_name: String,
-    pub source: InstructionError,
+pub enum CallGraphError {
+    #[error("Missing switch origin for {0}")]
+    MissingSwitchOrigin(u32),
+    #[error("Instruction error - {0}")]
+    InstructionError(#[from] InstructionError),
 }
 
-impl std::fmt::Display for DexError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "DexError class_id - {}, method_id - {}: {}",
-            self.class_name, self.method_name, self.source
-        )
-    }
+#[derive(Debug, Error)]
+pub enum DexError {
+
 }
+

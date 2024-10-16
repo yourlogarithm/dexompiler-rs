@@ -1,0 +1,3 @@
+[submodule "dex-parser"]
+	path = dex-parser
+	url = git@github.com:yourlogarithm/dex-parser.git

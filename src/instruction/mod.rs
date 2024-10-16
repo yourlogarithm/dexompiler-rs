@@ -1,12 +1,11 @@
-mod error;
 mod format;
 mod opcode;
 
+use num_traits::{FromPrimitive, ToBytes};
 use std::{collections::HashMap, iter::Peekable};
 
-pub use error::*;
+use super::errors::InstructionError;
 pub use format::*;
-use num_traits::{FromPrimitive, ToBytes};
 pub use opcode::Opcode;
 
 #[derive(Debug)]

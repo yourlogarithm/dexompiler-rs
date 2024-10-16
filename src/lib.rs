@@ -1,77 +1,42 @@
 #![feature(extract_if)]
 
-#[macro_use]
-extern crate lazy_static;
+use cfg::BasicBlock;
+use dex::{class::Class, code::CodeItem, method::Method, DexReader, Error};
 
-use std::io::{Read, Seek};
-
-use cfg::{BasicBlock, CallGraphError};
-use dex::{Dex, DexReader};
-use errors::ApkParseError;
-
+use errors::CallGraphError;
 use instruction::Instruction;
-use log::{error, warn};
-use regex::bytes::Regex;
-use zip::ZipArchive;
 
 mod cfg;
 mod errors;
 mod instruction;
 
-lazy_static! {
-    static ref DEX_MAGIC: Regex = Regex::new(r"\x64\x65\x78\x0A\x30\x33[\x35-\x39]\x00").unwrap();
-}
-
-pub fn parse<R: Read + Seek>(apk: R) -> Result<(), ApkParseError> {
-    let mut zip_archive = ZipArchive::new(apk)?;
-    let mut dexes = Vec::new();
-
-    for i in 0..zip_archive.len() {
-        let mut file = match zip_archive.by_index(i) {
-            Ok(file) => file,
+pub fn parse(buf: impl AsRef<[u8]>) -> Result<(), Error> {
+    let dex = DexReader::from_vec(buf)?;
+    for result_class in dex.classes() {
+        let Class { direct_methods, virtual_methods, .. } = match result_class {
+            Ok(class) => class,
             Err(e) => {
-                error!("Error reading file at index {i}: {e}");
+                log::error!("{e}");
                 continue;
             }
         };
-
-        let mut buf = Vec::new();
-        if let Err(e) = file.read_to_end(&mut buf) {
-            warn!("Error reading file: {e}");
-            continue;
-        }
-
-        if DEX_MAGIC.is_match(&buf) {
-            match DexReader::from_vec(buf) {
-                Ok(dex) => dexes.push(dex),
-                Err(e) => error!("{e}"),
-            }
-        }
-    }
-
-    parse_dexes(dexes).unwrap();
-
-    Ok(())
-}
-
-fn parse_dexes(dexes: Vec<Dex<Vec<u8>>>) -> Result<(), CallGraphError> {
-    for dex in dexes.into_iter() {
-        for class in dex.classes().filter_map(Result::ok) {
-            for method in class.methods() {
-                let Some(code_item) = method.code() else {
-                    continue;
-                };
-                // TODO: No clone
-                parse_method(code_item.insns().to_vec())?;
+        for Method { code, name, .. } in direct_methods.into_iter().chain(virtual_methods) {
+            log::trace!("{name}");
+            let Some(CodeItem { insns, .. }) = code else {
+                log::debug!("{name} - missing code");
+                continue;
+            };
+            if let Err(e) = parse_method(insns) {
+                log::error!("{e}");
             }
         }
     }
     Ok(())
 }
 
-fn parse_method(code: Vec<u16>) -> Result<(), CallGraphError> {
+fn parse_method(insns: Vec<u16>) -> Result<(), CallGraphError> {
     let mut pos = 0;
-    let mut iter = code.into_iter().peekable();
+    let mut iter = insns.into_iter().peekable();
     let mut cfg = cfg::MethodCFG::new();
     while let Some(inst) = Instruction::try_from_code(&mut iter)? {
         let size = match inst {
@@ -82,21 +47,57 @@ fn parse_method(code: Vec<u16>) -> Result<(), CallGraphError> {
         cfg.add_instruction(pos, inst)?;
         pos += size;
     }
-    let mut blocks = BasicBlock::from_method_cfg(cfg)?;
+    let blocks = BasicBlock::from_method_cfg(cfg)?;
     println!("{blocks:#?}");
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parse_method;
+    use std::io::Read;
 
-    // #[test]
-    // fn it_works() {
-    //     let fdroid = std::fs::File::open("F-Droid.apk").unwrap();
-    //     super::parse(fdroid).unwrap();
-    //     // panic!()
-    // }
+    use zip::ZipArchive;
+
+    use crate::{parse, parse_method};
+
+    const DEX_MAGICS: [&[u8; 8]; 5] = [
+        b"\x64\x65\x78\x0A\x30\x33\x39\x00",
+        b"\x64\x65\x78\x0A\x30\x33\x38\x00",
+        b"\x64\x65\x78\x0A\x30\x33\x37\x00",
+        b"\x64\x65\x78\x0A\x30\x33\x36\x00",
+        b"\x64\x65\x78\x0A\x30\x33\x35\x00",
+    ];
+
+    #[test]
+    fn it_works() {
+        let apk = std::fs::read("F-Droid.apk").unwrap();
+        let cursor = std::io::Cursor::new(apk);
+        let mut zip_archive = ZipArchive::new(cursor).unwrap();
+        for i in 0..zip_archive.len() {
+            let mut file = match zip_archive.by_index(i) {
+                Ok(file) => file,
+                Err(e) => {
+                    log::error!("Error reading file at index {i}: {e}");
+                    continue;
+                }
+            };
+
+            let mut buf = Vec::new();
+            if let Err(e) = file.read_to_end(&mut buf) {
+                log::warn!("Error reading file: {e}");
+                continue;
+            }
+
+            for magic in DEX_MAGICS {
+                if magic == &buf[..8] {
+                    if let Err(e) = parse(buf) {
+                        log::error!("{e}");
+                    }
+                    break;
+                }
+            }
+        }
+    }
 
     #[test]
     fn it_works2() {

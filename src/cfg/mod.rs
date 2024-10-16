@@ -1,12 +1,10 @@
 mod block;
-mod error;
 mod r#loop;
 
 pub use block::BasicBlock;
-pub use error::CallGraphError;
 use std::collections::{HashMap, HashSet};
 
-use crate::instruction::{Format, Instruction, InstructionError, Opcode};
+use crate::{errors::{CallGraphError, InstructionError}, instruction::{Format, Instruction, Opcode}};
 
 #[derive(Debug, Default)]
 pub struct MethodCFG {
