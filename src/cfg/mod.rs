@@ -1,24 +1,19 @@
 mod block;
-mod r#loop;
 
-pub use block::BasicBlock;
+pub(crate) use block::BasicBlock;
 use std::collections::{HashMap, HashSet};
 
 use crate::{errors::{CallGraphError, InstructionError}, instruction::{Format, Instruction, Opcode}};
 
 #[derive(Debug, Default)]
-pub struct MethodCFG {
+pub struct MethodControlFlowGraph {
     instructions: Vec<(u32, Instruction)>,
     switch_payload_origin: HashMap<u32, Vec<u32>>,
     switch_branch_targets: HashMap<u32, Vec<u32>>,
     leaders: HashSet<u32>,
 }
 
-impl MethodCFG {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+impl MethodControlFlowGraph {
     pub fn target(op: Opcode, address: u32, format: &Format) -> Result<u32, CallGraphError> {
         let res = address as i32 + format.offset().ok_or(InstructionError::BadFormat(op))?;
         Ok(res as u32)

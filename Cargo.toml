@@ -15,12 +15,12 @@ readme = "README.md"
 edition = "2021"
 
 [dependencies]
-log = "0.4.22"
 thiserror = "1.0.58"
 dex = { path = "dex-parser" }
 num-derive = "0.4.2"
 num-traits = "0.2.19"
 bitvec = "1.0.1"
+log = { version = "0.4.25", features = ["kv"] }
 
 [dev-dependencies]
 zip = "2.1.3"

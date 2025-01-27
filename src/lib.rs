@@ -1,6 +1,6 @@
 #![feature(extract_if)]
 
-use cfg::BasicBlock;
+use cfg::{BasicBlock, MethodControlFlowGraph};
 use dex::{class::Class, code::CodeItem, method::Method, DexReader, Error};
 
 use errors::CallGraphError;
@@ -13,7 +13,11 @@ mod instruction;
 pub fn parse(buf: impl AsRef<[u8]>) -> Result<(), Error> {
     let dex = DexReader::from_vec(buf)?;
     for result_class in dex.classes() {
-        let Class { direct_methods, virtual_methods, .. } = match result_class {
+        let Class {
+            direct_methods,
+            virtual_methods,
+            ..
+        } = match result_class {
             Ok(class) => class,
             Err(e) => {
                 log::error!("{e}");
@@ -37,7 +41,7 @@ pub fn parse(buf: impl AsRef<[u8]>) -> Result<(), Error> {
 fn parse_method(insns: Vec<u16>) -> Result<(), CallGraphError> {
     let mut pos = 0;
     let mut iter = insns.into_iter().peekable();
-    let mut cfg = cfg::MethodCFG::new();
+    let mut cfg = MethodControlFlowGraph::default();
     while let Some(inst) = Instruction::try_from_code(&mut iter)? {
         let size = match inst {
             Instruction::Regular { ref format, .. } => format.len() as u32,
