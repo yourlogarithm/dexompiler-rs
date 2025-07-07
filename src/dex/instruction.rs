@@ -110,7 +110,13 @@ impl Instruction {
                 actual: NonZeroUsize::new(raw_bytecode.len()).ok_or(InstructionError::End)?,
             });
         }
-        Ok(Some((Instruction { opcode, method_id: m_idx }, length)))
+        Ok(Some((
+            Instruction {
+                opcode,
+                method_id: m_idx,
+            },
+            length,
+        )))
     }
 }
 
@@ -156,7 +162,13 @@ mod tests {
     fn test_too_short() {
         let code: [u16; 1] = [0x6E];
         let result = Instruction::try_from_code(&code, 0);
-        if let Err(InstructionError::TooShort { offset, opcode, expected, actual }) = result {
+        if let Err(InstructionError::TooShort {
+            offset,
+            opcode,
+            expected,
+            actual,
+        }) = result
+        {
             assert_eq!(offset, 0);
             assert_eq!(opcode, Opcode::InvokeVirtual);
             assert_eq!(expected, NonZeroUsize::new(3).unwrap());

@@ -8,12 +8,16 @@ use super::Opcode;
 pub struct DexError {
     pub class_name: String,
     pub method_name: String,
-    pub source: InstructionError
+    pub source: InstructionError,
 }
 
 impl std::fmt::Display for DexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DexError class_id - {}, method_id - {}: {}", self.class_name, self.method_name, self.source)
+        write!(
+            f,
+            "DexError class_id - {}, method_id - {}: {}",
+            self.class_name, self.method_name, self.source
+        )
     }
 }
 
@@ -24,10 +28,10 @@ pub enum InstructionError {
         offset: usize,
         opcode: Opcode,
         expected: NonZeroUsize,
-        actual: NonZeroUsize
+        actual: NonZeroUsize,
     },
     #[error("Opcode {1} at index {0} does not exist")]
     BadOpcode(usize, u8),
     #[error("Code ended")]
-    End
+    End,
 }

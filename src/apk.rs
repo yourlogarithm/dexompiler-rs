@@ -16,6 +16,8 @@ pub struct Apk {
     /// then a DFS traversal will be done to flatten the call graph.
     #[serde(rename = "mth")]
     pub methods: Vec<Method>,
+
+    pub files: Vec<String>,
 }
 
 impl Apk {
@@ -46,11 +48,7 @@ impl From<Apk> for CompactApk {
     fn from(apk: Apk) -> Self {
         CompactApk {
             manifest: apk.manifest,
-            methods: apk
-                .methods
-                .into_iter()
-                .map(CompactMethod::from)
-                .collect(),
+            methods: apk.methods.into_iter().map(CompactMethod::from).collect(),
         }
     }
 }

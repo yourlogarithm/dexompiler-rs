@@ -1,6 +1,6 @@
-use zip::result::ZipError;
-use thiserror::Error;
 use axmldecoder::ParseError;
+use thiserror::Error;
+use zip::result::ZipError;
 
 use crate::dex::DexError;
 
@@ -11,7 +11,7 @@ pub enum ApkParseError {
     #[error("Failed to parse manifest: {0}")]
     ManifestError(ParseError),
     #[error("Failed to parse DEX file: {0}")]
-    DexError(DexError)
+    DexError(DexError),
 }
 
 impl From<ZipError> for ApkParseError {

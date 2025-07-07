@@ -7,10 +7,14 @@ use std::collections::HashMap;
 
 use self::method::Signature;
 use dex::Dex;
-use log::{debug, error};
 use regex::Regex;
 
-pub use self::{errors::DexError, instruction::Instruction, method::{Method, CompactMethod}, opcode::Opcode};
+pub use self::{
+    errors::DexError,
+    instruction::Instruction,
+    method::{CompactMethod, Method},
+    opcode::Opcode,
+};
 
 pub fn get_methods(
     dexes: &[Dex<impl AsRef<[u8]>>],
@@ -69,19 +73,19 @@ pub fn get_methods(
                                                                     &r,
                                                                 ))
                                                             }
-                                                            Err(e) => error!("{e}"),
+                                                            Err(e) => log::error!("{e}"),
                                                         }
                                                     }
                                                 }
-                                                Err(e) => error!("{e}"),
+                                                Err(e) => log::error!("{e}"),
                                             }
                                         }
                                         (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
-                                            error!("{e}")
+                                            log::error!("{e}")
                                         }
                                     }
                                 }
-                                Err(e) => error!("{e}"),
+                                Err(e) => log::error!("{e}"),
                             }
                         }
                         insns.push(inst);
@@ -99,7 +103,7 @@ pub fn get_methods(
     let mut flattened = Vec::with_capacity(call_graph.len());
     let mut stack: Vec<_> = call_graph.keys().collect();
     if let Some(regexes) = regexes {
-        debug!("Sorting by manifest components");
+        log::debug!("Sorting by manifest components");
         stack.sort_by_cached_key(|&sig| {
             (
                 regexes.iter().any(|r| r.is_match(&sig.class_type)),
@@ -107,7 +111,7 @@ pub fn get_methods(
             )
         });
     } else {
-        debug!("Sorting by method name");
+        log::debug!("Sorting by method name");
         stack.sort_by_key(|n| std::cmp::Reverse(*n));
     };
 

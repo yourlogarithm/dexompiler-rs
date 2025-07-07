@@ -8,7 +8,6 @@ mod manifest;
 
 use ::dex::DexReader;
 use dex::get_methods;
-use log::{error, warn};
 use regex::{bytes::Regex as BytesRegex, Regex};
 use std::io::{Read, Seek};
 use zip::ZipArchive;
@@ -33,7 +32,7 @@ lazy_static! {
 /// * `Result<Apk, ApkParseError>`: A successful parse yields an `Apk`, while failure results in an `ApkParseError`.
 ///
 /// ### Example
-/// ```rust
+/// ```no_run
 /// use dexompiler::parse;
 ///
 /// fn main() {
@@ -44,29 +43,32 @@ lazy_static! {
 ///     println!("{compact:?}");
 /// }
 /// ```
-pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
+pub fn parse<'a, R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
     let mut zip_archive = ZipArchive::new(apk)?;
     let mut manifest = None;
     let mut dexes = Vec::new();
+    let mut files = Vec::with_capacity(zip_archive.len());
 
     for i in 0..zip_archive.len() {
         let mut file = match zip_archive.by_index(i) {
             Ok(file) => file,
             Err(e) => {
-                error!("Error reading file at index {i}: {e}");
+                log::error!("Error reading file at index {i}: {e}");
                 continue;
             }
         };
 
+        files.push(file.name().into());
+
         let mut buf = Vec::new();
         if let Err(e) = file.read_to_end(&mut buf) {
-            warn!("Error reading file: {e}");
+            log::warn!("Error reading file: {e}");
             continue;
         }
 
         if file.name() == "AndroidManifest.xml" {
             if manifest.is_some() {
-                warn!("Multiple AndroidManifest.xml files found in APK");
+                log::warn!("Multiple AndroidManifest.xml files found in APK");
             } else {
                 manifest = manifest::parse(&buf)?;
             }
@@ -74,7 +76,7 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
             if DEX_MAGIC.is_match(&buf) {
                 match DexReader::from_vec(buf) {
                     Ok(dex) => dexes.push(dex),
-                    Err(e) => error!("{e}"),
+                    Err(e) => log::error!("{e}"),
                 }
             }
         }
@@ -87,12 +89,12 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
             .chain(m.services.iter())
             .chain(m.receivers.iter())
             .chain(m.providers.iter())
-            .map(|s| Regex::new(s.replace('.', "/").as_str()))
+            .map(|s| Regex::new(s.name.replace('.', "/").as_str()))
             .collect::<Result<Vec<_>, _>>()
         {
             Ok(regexes) => Some(regexes),
             Err(e) => {
-                error!("{e}");
+                log::error!("{e}");
                 None
             }
         }
@@ -103,5 +105,6 @@ pub fn parse<R: Read + Seek>(apk: R) -> Result<Apk, ApkParseError> {
     Ok(Apk {
         manifest,
         methods: get_methods(&dexes, regexes)?,
+        files,
     })
 }

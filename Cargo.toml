@@ -21,10 +21,10 @@ edition = "2021"
 lazy_static = "1.4.0"
 log = "0.4.21"
 regex = "1.10.4"
-thiserror = "1.0.58"
-zip = "1.1.0"
-axmldecoder = { git = "https://github.com/yourlogarithm/axmldecoder.git", version = "0.6.0" }
-dex = { git = "https://github.com/yourlogarithm/dex-parser.git", version = "0.5.0" }
+thiserror = "2.0.12"
+zip = "4.2.0"
+axmldecoder = { git = "https://github.com/yourlogarithm/axmldecoder.git", rev = "db5cdc86d38a1d74a55fd3a1ac5a58dd0b34d43b" }
+dex = { git = "https://github.com/yourlogarithm/dex-parser.git", rev = "740fa5752bdb231fa68d8c6bc4e1003e5d2ae538" }
 num-derive = "0.4.2"
 num-traits = "0.2.18"
 serde = { version = "1.0.198", features = ["derive"] }
