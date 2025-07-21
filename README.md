@@ -1,7 +1,5 @@
 ### dexompiler
 
-> :warning: **This is not a full featured decompiler** (for now).
-
 This is a Rust library developed as a part of my bachelor's degree final project.
 
 It exposes a structure called `Apk` and a function `parse` that takes as input an `.apk` buffer and returns an `Apk` object containing:
